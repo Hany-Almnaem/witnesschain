@@ -1,0 +1,235 @@
+/**
+ * WitnessChain Validation Schemas
+ * Zod schemas for runtime validation across frontend and backend
+ */
+
+import { z } from 'zod';
+
+import {
+  ALLOWED_FILE_TYPES,
+  EVIDENCE_CATEGORIES,
+  SOURCE_TYPES,
+  CONTENT_WARNINGS,
+  EVIDENCE_STATUS,
+  VERIFICATION_STATUS,
+  FILE_SIZE_LIMITS,
+} from './constants.js';
+
+/**
+ * File validation schema
+ */
+export const fileValidationSchema = z.object({
+  name: z
+    .string()
+    .min(1, 'File name is required')
+    .max(255, 'File name too long'),
+  size: z
+    .number()
+    .min(FILE_SIZE_LIMITS.MIN_BYTES, 'File must be at least 127 bytes')
+    .max(FILE_SIZE_LIMITS.MAX_BYTES, 'File must be less than 200MB'),
+  type: z.enum(ALLOWED_FILE_TYPES, {
+    errorMap: () => ({ message: 'File type not supported' }),
+  }),
+});
+
+/**
+ * Evidence location schema
+ */
+export const locationSchema = z.object({
+  description: z.string().max(500).optional(),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+});
+
+/**
+ * Evidence date schema
+ */
+export const dateSchema = z.object({
+  occurred: z.string().datetime().optional(),
+  approximate: z.string().max(100).optional(),
+});
+
+/**
+ * Evidence source schema
+ */
+export const sourceSchema = z.object({
+  type: z.enum(SOURCE_TYPES),
+  name: z.string().max(200).optional(),
+});
+
+/**
+ * Evidence metadata schema
+ */
+export const evidenceMetadataSchema = z.object({
+  title: z
+    .string()
+    .min(5, 'Title must be at least 5 characters')
+    .max(200, 'Title must be less than 200 characters')
+    .regex(/^[^<>{}]*$/, 'Title contains invalid characters'),
+
+  description: z
+    .string()
+    .min(20, 'Description must be at least 20 characters')
+    .max(5000, 'Description must be less than 5000 characters')
+    .optional(),
+
+  category: z.enum(EVIDENCE_CATEGORIES, {
+    errorMap: () => ({ message: 'Please select a valid category' }),
+  }),
+
+  location: locationSchema.optional(),
+
+  date: dateSchema.optional(),
+
+  source: sourceSchema,
+
+  contentWarnings: z.array(z.enum(CONTENT_WARNINGS)).optional(),
+
+  tags: z.array(z.string().max(50)).max(10).optional(),
+});
+
+/**
+ * Encryption info schema
+ */
+export const encryptionInfoSchema = z.object({
+  encryptedKey: z.string().min(1, 'Encrypted key is required'),
+  nonce: z.string().min(1, 'Nonce is required'),
+  contentHash: z.string().regex(/^0x[a-f0-9]{64}$/, 'Invalid content hash'),
+});
+
+/**
+ * Full upload request schema
+ */
+export const uploadRequestSchema = z.object({
+  file: fileValidationSchema,
+  metadata: evidenceMetadataSchema,
+  encryption: encryptionInfoSchema,
+});
+
+/**
+ * User registration schema
+ */
+export const userRegistrationSchema = z.object({
+  did: z
+    .string()
+    .min(1, 'DID is required')
+    .regex(/^did:key:z[a-zA-Z0-9]+$/, 'Invalid DID format'),
+  publicKey: z.string().min(1, 'Public key is required'),
+  walletAddress: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid wallet address')
+    .optional(),
+});
+
+/**
+ * Evidence status schema
+ */
+export const evidenceStatusSchema = z.enum(EVIDENCE_STATUS);
+
+/**
+ * Verification status schema
+ */
+export const verificationStatusSchema = z.enum(VERIFICATION_STATUS);
+
+/**
+ * Pagination schema
+ */
+export const paginationSchema = z.object({
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(20),
+});
+
+/**
+ * Content hash schema
+ */
+export const contentHashSchema = z
+  .string()
+  .regex(/^0x[a-f0-9]{64}$/, 'Invalid content hash');
+
+/**
+ * Ethereum address schema
+ */
+export const ethereumAddressSchema = z
+  .string()
+  .regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address');
+
+/**
+ * Transaction hash schema
+ */
+export const txHashSchema = z
+  .string()
+  .regex(/^0x[a-fA-F0-9]{64}$/, 'Invalid transaction hash');
+
+/**
+ * DID schema
+ */
+export const didSchema = z
+  .string()
+  .regex(/^did:key:z[a-zA-Z0-9]+$/, 'Invalid DID format');
+
+// Type exports
+export type FileValidation = z.infer<typeof fileValidationSchema>;
+export type EvidenceMetadata = z.infer<typeof evidenceMetadataSchema>;
+export type EncryptionInfo = z.infer<typeof encryptionInfoSchema>;
+export type UploadRequest = z.infer<typeof uploadRequestSchema>;
+export type UserRegistration = z.infer<typeof userRegistrationSchema>;
+export type Pagination = z.infer<typeof paginationSchema>;
+
+/**
+ * Validate evidence before upload
+ */
+export function validateEvidence(data: unknown): {
+  success: boolean;
+  data?: UploadRequest;
+  errors?: z.ZodError['errors'];
+} {
+  const result = uploadRequestSchema.safeParse(data);
+
+  if (result.success) {
+    return { success: true, data: result.data };
+  }
+
+  return { success: false, errors: result.error.errors };
+}
+
+/**
+ * Validate user registration data
+ */
+export function validateUserRegistration(data: unknown): {
+  success: boolean;
+  data?: UserRegistration;
+  errors?: z.ZodError['errors'];
+} {
+  const result = userRegistrationSchema.safeParse(data);
+
+  if (result.success) {
+    return { success: true, data: result.data };
+  }
+
+  return { success: false, errors: result.error.errors };
+}
+
+/**
+ * Sanitize text input (remove potential XSS)
+ */
+export function sanitizeText(input: string): string {
+  return input
+    .replace(/[<>]/g, '') // Remove angle brackets
+    .replace(/javascript:/gi, '') // Remove javascript: protocol
+    .replace(/on\w+=/gi, '') // Remove event handlers
+    .trim();
+}
+
+/**
+ * Check if a file type is allowed
+ */
+export function isAllowedFileType(type: string): type is typeof ALLOWED_FILE_TYPES[number] {
+  return (ALLOWED_FILE_TYPES as readonly string[]).includes(type);
+}
+
+/**
+ * Get human-readable file size limit
+ */
+export function getFileSizeLimitString(): string {
+  return `${FILE_SIZE_LIMITS.MAX_BYTES / (1024 * 1024)}MB`;
+}

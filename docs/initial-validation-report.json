@@ -1,0 +1,234 @@
+{
+  "timestamp": "2025-12-10T21:59:36.726Z",
+  "results": [
+    {
+      "category": "Filecoin Testnet",
+      "timestamp": "2025-12-10T21:59:31.796Z",
+      "checks": [
+        {
+          "name": "RPC Connection",
+          "passed": true,
+          "message": "Connected to https://api.calibration.node.glif.io/rpc/v1",
+          "details": {
+            "chainId": "314159",
+            "name": "filecoin-calibration"
+          },
+          "duration": 1105
+        },
+        {
+          "name": "Chain ID Verification",
+          "passed": true,
+          "message": "Confirmed Calibration testnet (Chain ID: 314159)",
+          "details": {
+            "chainId": 314159,
+            "expected": 314159
+          },
+          "duration": 313
+        },
+        {
+          "name": "Block Number",
+          "passed": true,
+          "message": "Current block: 3269252",
+          "details": {
+            "blockNumber": 3269252
+          },
+          "duration": 359
+        },
+        {
+          "name": "Gas Price",
+          "passed": true,
+          "message": "Gas price: 0.000122978 gwei",
+          "details": {
+            "gasPriceGwei": "0.000122978"
+          },
+          "duration": 661
+        },
+        {
+          "name": "Wallet Balance",
+          "passed": true,
+          "message": "Wallet has 200.0000 FIL (sufficient for testing)",
+          "details": {
+            "address": "0x67C5967429280Ae900C3D16DEAEFB68e21A49FE7",
+            "balanceFil": "200.0000",
+            "minimumRequired": 0.1
+          },
+          "duration": 465
+        }
+      ],
+      "summary": {
+        "total": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0
+      },
+      "overallPassed": true
+    },
+    {
+      "category": "Synapse SDK",
+      "timestamp": "2025-12-10T21:59:34.704Z",
+      "checks": [
+        {
+          "name": "Synapse SDK Installation",
+          "passed": true,
+          "message": "@filoz/synapse-sdk is installed",
+          "details": {
+            "version": "unknown",
+            "exportsCount": 55,
+            "keyExports": [
+              "ADD_PIECES_TYPEHASH",
+              "CHAIN_IDS",
+              "CONTRACT_ABIS",
+              "CONTRACT_ADDRESSES",
+              "CREATE_DATA_SET_TYPEHASH",
+              "DELETE_DATA_SET_TYPEHASH",
+              "EIP2612_PERMIT_TYPES",
+              "EIP712_ENCODED_TYPES",
+              "EIP712_TYPES",
+              "EIP712_TYPE_HASHES"
+            ]
+          },
+          "duration": 234
+        },
+        {
+          "name": "SDK Key Exports",
+          "passed": true,
+          "message": "Found 1 expected exports",
+          "details": {
+            "totalExports": 55,
+            "foundExpected": [
+              "Synapse"
+            ],
+            "allExports": [
+              "ADD_PIECES_TYPEHASH",
+              "CHAIN_IDS",
+              "CONTRACT_ABIS",
+              "CONTRACT_ADDRESSES",
+              "CREATE_DATA_SET_TYPEHASH",
+              "DELETE_DATA_SET_TYPEHASH",
+              "EIP2612_PERMIT_TYPES",
+              "EIP712_ENCODED_TYPES",
+              "EIP712_TYPES",
+              "EIP712_TYPE_HASHES",
+              "GENESIS_TIMESTAMPS",
+              "METADATA_KEYS",
+              "PDPAuthHelper",
+              "PDPServer",
+              "PDPVerifier",
+              "PDP_PERMISSIONS",
+              "PDP_PERMISSION_NAMES",
+              "PaymentsService",
+              "RPC_URLS",
+              "SCHEDULE_PIECE_REMOVALS_TYPEHASH"
+            ]
+          },
+          "duration": 1
+        },
+        {
+          "name": "Synapse Client Creation",
+          "passed": true,
+          "message": "Successfully created Synapse client",
+          "details": {
+            "clientType": "object",
+            "hasPayments": true,
+            "hasStorage": true
+          },
+          "duration": 1347
+        },
+        {
+          "name": "Ethers Provider (Fallback)",
+          "passed": true,
+          "message": "Ethers.js provider is functional for direct contract interaction",
+          "duration": 362
+        }
+      ],
+      "summary": {
+        "total": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0
+      },
+      "overallPassed": true
+    },
+    {
+      "category": "UCAN Libraries",
+      "timestamp": "2025-12-10T21:59:36.649Z",
+      "checks": [
+        {
+          "name": "UCANTO Core Library",
+          "passed": true,
+          "message": "@ucanto/core is installed and functional",
+          "details": {
+            "hasDelegate": true,
+            "hasInvoke": true
+          },
+          "duration": 37
+        },
+        {
+          "name": "UCANTO Principal Library",
+          "passed": true,
+          "message": "@ucanto/principal is installed with ed25519 support",
+          "details": {
+            "hasEd25519": true,
+            "hasSigner": true
+          },
+          "duration": 7
+        },
+        {
+          "name": "DID Key Generation",
+          "passed": true,
+          "message": "Successfully generated did:key",
+          "details": {
+            "didPrefix": "did:key:z6MkkhmZ9iaW...",
+            "didLength": 56
+          },
+          "duration": 26
+        },
+        {
+          "name": "UCAN Delegation Creation",
+          "passed": true,
+          "message": "Successfully created UCAN delegation",
+          "details": {
+            "hasRoot": true,
+            "hasCid": true,
+            "issuerDid": "did:key:z6MkfgLb7rhw...",
+            "audienceDid": "did:key:z6MkvtMKCvV3..."
+          },
+          "duration": 4
+        },
+        {
+          "name": "UCAN Verification",
+          "passed": true,
+          "message": "UCAN delegation CID verification passed",
+          "details": {
+            "cidString": "bafyreidw4zm3d6syi6axzivjt2umz..."
+          },
+          "duration": 1
+        },
+        {
+          "name": "IPLD DAG-UCAN",
+          "passed": true,
+          "message": "@ipld/dag-ucan is available for UCAN encoding/decoding",
+          "details": {
+            "hasFormat": true,
+            "hasParse": true
+          },
+          "duration": 0
+        }
+      ],
+      "summary": {
+        "total": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0
+      },
+      "overallPassed": true
+    }
+  ],
+  "overallPassed": true,
+  "summary": {
+    "testnet": true,
+    "synapse": true,
+    "ucan": true
+  },
+  "recommendation": "    • Review individual validation outputs above"
+}

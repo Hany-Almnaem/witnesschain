@@ -1,0 +1,4 @@
+# pnpm workspace configuration for monorepo
+packages:
+  - 'apps/*'
+  - 'packages/*'
