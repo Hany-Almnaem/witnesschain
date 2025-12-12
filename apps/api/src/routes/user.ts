@@ -100,7 +100,7 @@ userRoutes.post('/register', zValidator('json', registerSchema), async (c) => {
         data: {
           id: did,
           publicKey,
-          walletAddress,
+          walletAddress: walletAddress ?? null,
           createdAt: new Date().toISOString(),
           isExisting: false,
         },
@@ -114,40 +114,11 @@ userRoutes.post('/register', zValidator('json', registerSchema), async (c) => {
 });
 
 /**
- * Get user by DID
- * GET /api/users/:did
- */
-userRoutes.get('/:did', async (c) => {
-  const did = c.req.param('did');
-
-  // Validate DID format
-  if (!did.startsWith('did:key:z')) {
-    throw Errors.badRequest('Invalid DID format');
-  }
-
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, did),
-  });
-
-  if (!user) {
-    throw Errors.notFound('User not found');
-  }
-
-  return c.json({
-    success: true,
-    data: {
-      id: user.id,
-      publicKey: user.publicKey,
-      walletAddress: user.walletAddress,
-      createdAt: user.createdAt,
-    },
-  });
-});
-
-/**
  * Get current user profile
  * GET /api/users/me
  * Requires authentication (X-DID header)
+ * 
+ * NOTE: This route MUST be registered before /:did to avoid being caught by the param route
  */
 userRoutes.get('/me', async (c) => {
   const did = c.req.header('X-DID');
@@ -182,6 +153,40 @@ userRoutes.get('/me', async (c) => {
 });
 
 /**
+ * Get user by DID
+ * GET /api/users/:did
+ * 
+ * NOTE: This parameterized route MUST be registered AFTER more specific routes
+ * like /me and /wallet/:address, otherwise it will catch those requests first.
+ */
+userRoutes.get('/:did', async (c) => {
+  const did = c.req.param('did');
+
+  // Validate DID format
+  if (!did.startsWith('did:key:z')) {
+    throw Errors.badRequest('Invalid DID format');
+  }
+
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, did),
+  });
+
+  if (!user) {
+    throw Errors.notFound('User not found');
+  }
+
+  return c.json({
+    success: true,
+    data: {
+      id: user.id,
+      publicKey: user.publicKey,
+      walletAddress: user.walletAddress,
+      createdAt: user.createdAt,
+    },
+  });
+});
+
+/**
  * Update user profile
  * PATCH /api/users/me
  * Requires authentication (X-DID header)
@@ -204,12 +209,15 @@ userRoutes.patch('/me', zValidator('json', updateProfileSchema), async (c) => {
     throw Errors.notFound('User not found');
   }
 
+  // Create single timestamp for consistency between DB and response
+  const updatedAt = new Date();
+
   // Update user
   await db
     .update(users)
     .set({
       walletAddress: walletAddress ?? user.walletAddress,
-      updatedAt: new Date(),
+      updatedAt,
     })
     .where(eq(users.id, did));
 
@@ -219,7 +227,7 @@ userRoutes.patch('/me', zValidator('json', updateProfileSchema), async (c) => {
       id: user.id,
       publicKey: user.publicKey,
       walletAddress: walletAddress ?? user.walletAddress,
-      updatedAt: new Date().toISOString(),
+      updatedAt: updatedAt.toISOString(),
     },
   });
 });
