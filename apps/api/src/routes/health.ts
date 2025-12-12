@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 
+import { isDatabaseConnected } from '../db/index.js';
+
 export const healthRoutes = new Hono();
 
 /**
@@ -7,11 +9,14 @@ export const healthRoutes = new Hono();
  * Returns the status of all services
  */
 healthRoutes.get('/', async (c) => {
+  // Check actual database connectivity
+  const dbConnected = await isDatabaseConnected();
+
   const services = {
-    database: 'connected' as const,
+    database: dbConnected ? 'connected' : 'disconnected',
     synapse: 'disconnected' as const, // Will be updated in Phase 4
     fvm: 'disconnected' as const, // Will be updated in Phase 5
-  };
+  } as const;
 
   // Determine overall health status
   const allHealthy = Object.values(services).every((s) => s === 'connected');
@@ -44,14 +49,15 @@ healthRoutes.get('/live', (c) => {
 
 /**
  * Readiness probe for Kubernetes/container orchestration
+ * Checks if the service can accept traffic
  */
 healthRoutes.get('/ready', async (c) => {
-  // TODO: Check database connection in Phase 1.5
-  const ready = true;
+  // Check database connectivity for readiness
+  const dbReady = await isDatabaseConnected();
 
-  if (ready) {
+  if (dbReady) {
     return c.json({ status: 'ready' });
   }
 
-  return c.json({ status: 'not_ready' }, 503);
+  return c.json({ status: 'not_ready', reason: 'database_unavailable' }, 503);
 });
