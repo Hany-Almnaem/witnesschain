@@ -56,9 +56,12 @@ describe('Auth Module', () => {
   });
 
   describe('Session Management', () => {
+    const now = Date.now();
     const testSession = {
       did: 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
       walletAddress: '0x1234567890123456789012345678901234567890',
+      createdAt: now,
+      expiresAt: now + 30 * 60 * 1000, // 30 minutes
     };
 
     it('should store and retrieve session', () => {
@@ -75,6 +78,17 @@ describe('Auth Module', () => {
     it('should clear session', () => {
       setSession(testSession);
       clearSession();
+      const retrieved = getSession();
+      expect(retrieved).toBeNull();
+    });
+
+    it('should return null for expired session', () => {
+      const expiredSession = {
+        ...testSession,
+        createdAt: now - 60 * 60 * 1000, // 1 hour ago
+        expiresAt: now - 30 * 60 * 1000, // Expired 30 minutes ago
+      };
+      setSession(expiredSession);
       const retrieved = getSession();
       expect(retrieved).toBeNull();
     });
@@ -125,18 +139,21 @@ describe('Security Requirements', () => {
     expect(hasSecretKey).toBe(false);
   });
 
-  it('session should only contain DID and wallet address', () => {
+  it('session should only contain safe fields (no secrets)', () => {
+    const now = Date.now();
     const session = {
       did: 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
       walletAddress: '0x1234567890123456789012345678901234567890',
+      createdAt: now,
+      expiresAt: now + 30 * 60 * 1000,
     };
     
     setSession(session);
     const stored = window.sessionStorage.getItem('witnesschain:session');
     const parsed = JSON.parse(stored!);
     
-    // Should only have these two properties
-    expect(Object.keys(parsed)).toEqual(['did', 'walletAddress']);
+    // Should only have these properties (no secrets)
+    expect(Object.keys(parsed).sort()).toEqual(['createdAt', 'did', 'expiresAt', 'walletAddress']);
     expect(parsed).not.toHaveProperty('secretKey');
     expect(parsed).not.toHaveProperty('privateKey');
     expect(parsed).not.toHaveProperty('password');

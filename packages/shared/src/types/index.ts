@@ -130,6 +130,8 @@ export interface FvmTransactionResult {
 export interface Session {
   did: string;
   walletAddress: string;
+  createdAt: number;
+  expiresAt: number;
 }
 
 /** Encrypted key record (stored in IndexedDB) */

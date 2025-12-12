@@ -9,10 +9,14 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
-import { v4 as uuid } from 'uuid';
+import { verifyMessage } from 'viem';
 
 import { db, users, type NewUser } from '../db/index.js';
 import { Errors } from '../middleware/error.js';
+import { 
+  createLinkingChallenge, 
+  isValidSignatureTimestamp 
+} from '@witnesschain/shared';
 
 export const userRoutes = new Hono();
 
@@ -76,12 +80,36 @@ userRoutes.post('/register', zValidator('json', registerSchema), async (c) => {
 
   // Validate signature if provided (for linking wallet to DID)
   if (signature && timestamp && walletAddress) {
-    // In production, verify the signature matches the expected message
-    // For MVP, we trust the client-side signature verification
-    const timestampAge = Math.floor(Date.now() / 1000) - timestamp;
-    if (timestampAge > 300) { // 5 minute max age
-      throw Errors.badRequest('Signature timestamp expired');
+    // Validate timestamp is within acceptable range
+    if (!isValidSignatureTimestamp(timestamp)) {
+      throw Errors.badRequest('Signature timestamp expired or invalid');
     }
+    
+    // Reconstruct the expected message that was signed
+    const expectedMessage = createLinkingChallenge(walletAddress, did, timestamp);
+    
+    // Verify the signature matches the wallet address
+    try {
+      const isValid = await verifyMessage({
+        address: walletAddress as `0x${string}`,
+        message: expectedMessage,
+        signature: signature as `0x${string}`,
+      });
+      
+      if (!isValid) {
+        throw Errors.unauthorized('Invalid wallet signature');
+      }
+    } catch (error) {
+      // verifyMessage throws if signature format is invalid
+      if (error instanceof Error && error.message.includes('Invalid wallet signature')) {
+        throw error;
+      }
+      throw Errors.badRequest('Invalid signature format');
+    }
+  } else if (walletAddress) {
+    // If wallet address is provided without signature, reject
+    // This prevents registration of arbitrary wallet addresses
+    throw Errors.badRequest('Wallet registration requires signature verification');
   }
 
   // Create new user

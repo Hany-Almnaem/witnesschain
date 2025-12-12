@@ -233,3 +233,66 @@ export function isAllowedFileType(type: string): type is typeof ALLOWED_FILE_TYP
 export function getFileSizeLimitString(): string {
   return `${FILE_SIZE_LIMITS.MAX_BYTES / (1024 * 1024)}MB`;
 }
+
+// ============================================================================
+// Authentication Utilities
+// ============================================================================
+
+/**
+ * Maximum age for signature timestamps (5 minutes)
+ */
+export const SIGNATURE_MAX_AGE_SECONDS = 300;
+
+/**
+ * Create a challenge message for wallet signature
+ * This links the wallet address to the DID
+ * 
+ * IMPORTANT: This function must be deterministic and identical on client and server
+ * 
+ * @param walletAddress - The wallet address (will be normalized to lowercase)
+ * @param did - The DID to link
+ * @param timestamp - Unix timestamp in seconds
+ * @returns Challenge message string
+ */
+export function createLinkingChallenge(
+  walletAddress: string,
+  did: string,
+  timestamp: number
+): string {
+  const normalizedAddress = walletAddress.toLowerCase();
+  
+  return [
+    'WitnessChain Identity Verification',
+    '',
+    'This signature links your wallet to your WitnessChain identity.',
+    '',
+    `Wallet: ${normalizedAddress}`,
+    `Identity: ${did}`,
+    `Timestamp: ${timestamp}`,
+    '',
+    'This request will not trigger a blockchain transaction or cost any gas fees.',
+  ].join('\n');
+}
+
+/**
+ * Validate signature timestamp is within acceptable range
+ * 
+ * @param timestamp - Unix timestamp in seconds
+ * @returns True if timestamp is valid (not too old or in future)
+ */
+export function isValidSignatureTimestamp(timestamp: number): boolean {
+  const now = Math.floor(Date.now() / 1000);
+  const age = now - timestamp;
+  
+  // Reject if too old
+  if (age > SIGNATURE_MAX_AGE_SECONDS) {
+    return false;
+  }
+  
+  // Reject if too far in the future (clock skew tolerance: 60 seconds)
+  if (age < -60) {
+    return false;
+  }
+  
+  return true;
+}

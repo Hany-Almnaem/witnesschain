@@ -59,6 +59,10 @@ export {
   sanitizeText,
   isAllowedFileType,
   getFileSizeLimitString,
+  // Auth utilities
+  createLinkingChallenge,
+  isValidSignatureTimestamp,
+  SIGNATURE_MAX_AGE_SECONDS,
 } from './validation.js';
 
 // Re-export validation types

@@ -10,6 +10,7 @@
  * - Password-derived key uses PBKDF2 with 100,000 iterations
  * - AES-GCM encryption for secret key storage
  * - Salt and IV are unique per encryption
+ * - Rate limiting protects against brute-force attacks
  */
 
 import type { EncryptedKeyRecord } from '@witnesschain/shared';
@@ -22,6 +23,111 @@ const STORE_NAME = 'encrypted-keys';
 const PBKDF2_ITERATIONS = 100_000;
 const SALT_LENGTH = 16;
 const IV_LENGTH = 12;
+
+// ============================================================================
+// Rate Limiting Configuration
+// ============================================================================
+
+/** Maximum failed attempts before lockout */
+const MAX_FAILED_ATTEMPTS = 5;
+
+/** Base lockout duration in milliseconds (1 minute) */
+const BASE_LOCKOUT_MS = 60_000;
+
+/** Maximum lockout duration in milliseconds (1 hour) */
+const MAX_LOCKOUT_MS = 60 * 60 * 1000;
+
+/**
+ * Rate limiting state per DID
+ * Stored in memory - resets on page reload (acceptable for client-side rate limiting)
+ */
+interface RateLimitState {
+  failedAttempts: number;
+  lockedUntil: number;
+  lastAttempt: number;
+}
+
+const rateLimitState = new Map<string, RateLimitState>();
+
+/**
+ * Custom error for rate limiting
+ */
+export class RateLimitError extends Error {
+  constructor(
+    public readonly remainingSeconds: number
+  ) {
+    super(`Too many failed attempts. Please wait ${remainingSeconds} seconds before trying again.`);
+    this.name = 'RateLimitError';
+  }
+}
+
+/**
+ * Check if a DID is currently rate limited
+ * @returns remaining lockout time in seconds, or 0 if not locked
+ */
+export function getRateLimitStatus(did: string): number {
+  const state = rateLimitState.get(did);
+  if (!state) return 0;
+  
+  const now = Date.now();
+  if (now >= state.lockedUntil) {
+    return 0;
+  }
+  
+  return Math.ceil((state.lockedUntil - now) / 1000);
+}
+
+/**
+ * Check rate limit before password attempt
+ * @throws RateLimitError if currently locked out
+ */
+function checkRateLimit(did: string): void {
+  const remainingSeconds = getRateLimitStatus(did);
+  if (remainingSeconds > 0) {
+    throw new RateLimitError(remainingSeconds);
+  }
+}
+
+/**
+ * Record a failed password attempt
+ * Implements exponential backoff for lockout duration
+ */
+function recordFailedAttempt(did: string): void {
+  const now = Date.now();
+  const state = rateLimitState.get(did) ?? {
+    failedAttempts: 0,
+    lockedUntil: 0,
+    lastAttempt: 0,
+  };
+  
+  state.failedAttempts++;
+  state.lastAttempt = now;
+  
+  // Apply lockout after exceeding max attempts
+  if (state.failedAttempts >= MAX_FAILED_ATTEMPTS) {
+    // Exponential backoff: 1min, 2min, 4min, 8min, ... up to 1 hour
+    const backoffMultiplier = Math.pow(2, state.failedAttempts - MAX_FAILED_ATTEMPTS);
+    const lockoutDuration = Math.min(BASE_LOCKOUT_MS * backoffMultiplier, MAX_LOCKOUT_MS);
+    state.lockedUntil = now + lockoutDuration;
+  }
+  
+  rateLimitState.set(did, state);
+}
+
+/**
+ * Clear rate limit state after successful authentication
+ */
+function clearRateLimitState(did: string): void {
+  rateLimitState.delete(did);
+}
+
+/**
+ * Clear all rate limit state (for testing only)
+ * WARNING: Do not use in production code
+ */
+export function clearAllRateLimitState(): void {
+  rateLimitState.clear();
+}
 
 /**
  * Open IndexedDB connection
@@ -146,11 +252,15 @@ export async function storeSecretKey(
  * @param did - The DID identifier for the key
  * @param password - User's password for decryption
  * @returns The decrypted secret key bytes, or null if not found or wrong password
+ * @throws RateLimitError if too many failed attempts
  */
 export async function retrieveSecretKey(
   did: string,
   password: string
 ): Promise<Uint8Array | null> {
+  // Check rate limit before attempting decryption
+  checkRateLimit(did);
+  
   const db = await openDatabase();
 
   // Get encrypted record from IndexedDB
@@ -192,9 +302,13 @@ export async function retrieveSecretKey(
       encryptedKey.buffer as ArrayBuffer
     );
 
+    // Success - clear rate limit state
+    clearRateLimitState(did);
+    
     return new Uint8Array(decryptedKey);
   } catch {
     // Decryption failed - wrong password or corrupted data
+    recordFailedAttempt(did);
     return null;
   }
 }
@@ -344,6 +458,11 @@ export async function verifyPassword(
   password: string
 ): Promise<boolean> {
   const key = await retrieveSecretKey(did, password);
-  return key !== null;
+  if (key) {
+    // Clear key from memory immediately - we only needed to verify password
+    key.fill(0);
+    return true;
+  }
+  return false;
 }
 

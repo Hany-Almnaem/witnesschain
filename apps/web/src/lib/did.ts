@@ -263,31 +263,10 @@ export async function didToIdentifier(did: string): Promise<string> {
 }
 
 /**
- * Create a challenge message for wallet signature
- * This links the wallet address to the DID
- * 
- * @param walletAddress - The wallet address
- * @param did - The DID to link
- * @param timestamp - Unix timestamp
- * @returns Challenge message string
+ * Re-export createLinkingChallenge from shared package
+ * This ensures client and server use identical message format
  */
-export function createLinkingChallenge(
-  walletAddress: string,
-  did: string,
-  timestamp: number
-): string {
-  return [
-    'WitnessChain Identity Verification',
-    '',
-    'This signature links your wallet to your WitnessChain identity.',
-    '',
-    `Wallet: ${walletAddress}`,
-    `Identity: ${did}`,
-    `Timestamp: ${timestamp}`,
-    '',
-    'This request will not trigger a blockchain transaction or cost any gas fees.',
-  ].join('\n');
-}
+export { createLinkingChallenge } from '@witnesschain/shared';
 
 /**
  * Encryption keypair generation using X25519

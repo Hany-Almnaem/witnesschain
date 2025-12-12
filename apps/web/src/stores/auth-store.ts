@@ -23,6 +23,7 @@ import {
   removeUserFromDevice,
   AuthError,
 } from '@/lib/auth';
+import { RateLimitError } from '@/lib/key-storage';
 
 /**
  * Authentication status
@@ -185,7 +186,10 @@ export const useAuthStore = create<AuthState>()(
       } catch (error) {
         let errorMessage = 'Authentication failed';
         
-        if (error instanceof AuthError) {
+        if (error instanceof RateLimitError) {
+          // Rate limit error - show remaining time
+          errorMessage = `Too many failed attempts. Please wait ${error.remainingSeconds} seconds.`;
+        } else if (error instanceof AuthError) {
           switch (error.code) {
             case 'AUTH_INVALID_PASSWORD':
               errorMessage = 'Invalid password. Please try again.';

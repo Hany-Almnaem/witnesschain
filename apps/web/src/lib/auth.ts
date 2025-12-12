@@ -33,6 +33,12 @@ const WALLET_DID_PREFIX = 'witnesschain:did:';
 const SESSION_KEY = 'witnesschain:session';
 
 /**
+ * Session duration in milliseconds (30 minutes)
+ * After this time, user must re-authenticate with password
+ */
+const SESSION_DURATION_MS = 30 * 60 * 1000;
+
+/**
  * Get stored DID for a wallet address
  * Returns null if wallet has no associated DID
  */
@@ -66,6 +72,7 @@ export function clearDIDForWallet(walletAddress: string): void {
 
 /**
  * Get current session
+ * Returns null if session doesn't exist or has expired
  */
 export function getSession(): Session | null {
   if (typeof window === 'undefined') return null;
@@ -74,7 +81,16 @@ export function getSession(): Session | null {
   if (!sessionData) return null;
   
   try {
-    return JSON.parse(sessionData) as Session;
+    const session = JSON.parse(sessionData) as Session;
+    
+    // Check if session has expired
+    if (session.expiresAt && Date.now() > session.expiresAt) {
+      // Session expired - clear it and return null
+      clearSession();
+      return null;
+    }
+    
+    return session;
   } catch {
     return null;
   }
@@ -96,6 +112,54 @@ export function clearSession(): void {
   if (typeof window === 'undefined') return;
   
   sessionStorage.removeItem(SESSION_KEY);
+}
+
+/**
+ * Create a new session with proper expiration
+ * Internal helper to ensure consistent session creation
+ */
+function createSession(did: string, walletAddress: string): Session {
+  const now = Date.now();
+  return {
+    did,
+    walletAddress,
+    createdAt: now,
+    expiresAt: now + SESSION_DURATION_MS,
+  };
+}
+
+/**
+ * Get remaining session time in seconds
+ * Returns 0 if session is expired or doesn't exist
+ */
+export function getSessionRemainingTime(): number {
+  const session = getSession();
+  if (!session || !session.expiresAt) return 0;
+  
+  const remaining = session.expiresAt - Date.now();
+  return remaining > 0 ? Math.ceil(remaining / 1000) : 0;
+}
+
+/**
+ * Check if session is expiring soon (within 5 minutes)
+ * Useful for showing re-authentication warnings
+ */
+export function isSessionExpiringSoon(): boolean {
+  const remaining = getSessionRemainingTime();
+  return remaining > 0 && remaining < 5 * 60; // Less than 5 minutes
+}
+
+/**
+ * Refresh session expiration (extend by another SESSION_DURATION_MS)
+ * Only works if session exists and is valid
+ */
+export function refreshSession(): boolean {
+  const session = getSession();
+  if (!session) return false;
+  
+  // Create new session with refreshed expiration
+  setSession(createSession(session.did, session.walletAddress));
+  return true;
 }
 
 /**
@@ -154,64 +218,74 @@ export async function authenticateUser(
       throw new AuthError('AUTH_INVALID_PASSWORD', 'Invalid password');
     }
     
-    // Restore DID info from secret key
-    const { publicKey } = await restoreDIDFromSecretKey(secretKey);
-    
-    // Create session
-    setSession({ did: existingDid, walletAddress: normalizedAddress });
-    
-    return {
-      did: existingDid,
-      publicKey,
-      isNewUser: false,
-    };
+    try {
+      // Restore DID info from secret key
+      const { publicKey } = await restoreDIDFromSecretKey(secretKey);
+      
+      // Create session with expiration
+      setSession(createSession(existingDid, normalizedAddress));
+      
+      return {
+        did: existingDid,
+        publicKey,
+        isNewUser: false,
+      };
+    } finally {
+      // Clear secret key from memory immediately after use
+      secretKey.fill(0);
+    }
   }
   
   // New user - generate DID and store
   const { did, publicKey, secretKey } = await generateDIDKeyPair();
   
-  // Store encrypted secret key
-  await storeSecretKey(secretKey, password, did);
-  
-  // Store wallet-DID mapping
-  setDIDForWallet(normalizedAddress, did);
-  
-  // Request wallet signature to link wallet to DID
-  if (signMessage) {
-    const timestamp = Math.floor(Date.now() / 1000);
-    const challenge = createLinkingChallenge(normalizedAddress, did, timestamp);
+  try {
+    // Store encrypted secret key
+    await storeSecretKey(secretKey, password, did);
     
-    try {
-      const signature = await signMessage(challenge);
+    // Store wallet-DID mapping
+    setDIDForWallet(normalizedAddress, did);
+    
+    // Request wallet signature to link wallet to DID
+    if (signMessage) {
+      const timestamp = Math.floor(Date.now() / 1000);
+      const challenge = createLinkingChallenge(normalizedAddress, did, timestamp);
       
-      // Register with backend
-      await registerUserOnBackend({
-        did,
-        publicKey,
-        walletAddress: normalizedAddress,
-        signature,
-        timestamp,
-      });
-    } catch (error) {
-      // If registration fails, clean up local state
-      await deleteSecretKey(did);
-      clearDIDForWallet(normalizedAddress);
-      
-      if (error instanceof Error && error.message.includes('rejected')) {
-        throw new AuthError('AUTH_SIGNATURE_REJECTED', 'Signature request was rejected');
+      try {
+        const signature = await signMessage(challenge);
+        
+        // Register with backend
+        await registerUserOnBackend({
+          did,
+          publicKey,
+          walletAddress: normalizedAddress,
+          signature,
+          timestamp,
+        });
+      } catch (error) {
+        // If registration fails, clean up local state
+        await deleteSecretKey(did);
+        clearDIDForWallet(normalizedAddress);
+        
+        if (error instanceof Error && error.message.includes('rejected')) {
+          throw new AuthError('AUTH_SIGNATURE_REJECTED', 'Signature request was rejected');
+        }
+        throw error;
       }
-      throw error;
     }
+    
+    // Create session with expiration
+    setSession(createSession(did, normalizedAddress));
+    
+    return {
+      did,
+      publicKey,
+      isNewUser: true,
+    };
+  } finally {
+    // Clear secret key from memory immediately after use
+    secretKey.fill(0);
   }
-  
-  // Create session
-  setSession({ did, walletAddress: normalizedAddress });
-  
-  return {
-    did,
-    publicKey,
-    isNewUser: true,
-  };
 }
 
 /**
@@ -227,6 +301,8 @@ export async function userExistsForWallet(walletAddress: string): Promise<boolea
 /**
  * Unlock the secret key for operations (requires password)
  * Use this for operations that need the secret key (encryption, signing)
+ * 
+ * SECURITY: Caller MUST clear the returned key after use with secretKey.fill(0)
  * 
  * @param password - User's password
  * @returns The decrypted secret key bytes

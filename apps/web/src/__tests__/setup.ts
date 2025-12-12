@@ -1,123 +1,27 @@
 /**
  * Vitest Test Setup
  * 
- * Sets up mocks and globals for testing.
+ * Sets up real cryptography and IndexedDB for testing.
+ * Uses fake-indexeddb for IndexedDB operations.
+ * Relies on Node.js 20+ globalThis.crypto or jsdom's crypto.
  */
 
-import { vi, beforeEach } from 'vitest';
+import { vi, beforeEach, afterEach } from 'vitest';
+import 'fake-indexeddb/auto';
 
-// Mock Web Crypto API
-const mockCrypto = {
-  getRandomValues: <T extends ArrayBufferView>(array: T): T => {
-    const uint8 = array as unknown as Uint8Array;
-    for (let i = 0; i < uint8.length; i++) {
-      uint8[i] = Math.floor(Math.random() * 256);
-    }
-    return array;
-  },
-  subtle: {
-    importKey: vi.fn().mockResolvedValue({}),
-    deriveKey: vi.fn().mockResolvedValue({}),
-    encrypt: vi.fn().mockImplementation(async (_: unknown, __: unknown, data: ArrayBuffer) => {
-      const input = new Uint8Array(data);
-      const output = new Uint8Array(input.length + 16);
-      output.set(input);
-      return output.buffer;
-    }),
-    decrypt: vi.fn().mockImplementation(async (_: unknown, __: unknown, data: ArrayBuffer) => {
-      const input = new Uint8Array(data);
-      const output = new Uint8Array(input.length - 16);
-      for (let i = 0; i < output.length; i++) {
-        output[i] = input[i];
-      }
-      return output.buffer;
-    }),
-    digest: vi.fn().mockImplementation(async (_: unknown, data: ArrayBuffer) => {
-      const hash = new Uint8Array(32);
-      const input = new Uint8Array(data);
-      for (let i = 0; i < 32; i++) {
-        hash[i] = input[i % input.length] ^ (i * 17);
-      }
-      return hash.buffer;
-    }),
-  },
-};
+// In Node.js 20+, crypto is available globally
+// In jsdom, it should also be available
+// Only polyfill if not present
+if (typeof globalThis.crypto === 'undefined' || typeof globalThis.crypto.subtle === 'undefined') {
+  // Dynamically import for Node.js environments that don't have global crypto
+  const { webcrypto } = await import('node:crypto');
+  Object.defineProperty(globalThis, 'crypto', {
+    value: webcrypto,
+    writable: true,
+  });
+}
 
-Object.defineProperty(globalThis, 'crypto', {
-  value: mockCrypto,
-  writable: true,
-});
-
-// Mock IndexedDB
-const mockIndexedDB = {
-  databases: new Map<string, Map<string, unknown>>(),
-  open: vi.fn().mockImplementation((name: string) => {
-    const db = {
-      objectStoreNames: {
-        contains: vi.fn().mockReturnValue(true),
-      },
-      createObjectStore: vi.fn(),
-      transaction: vi.fn().mockImplementation((storeName: string) => {
-        const store = mockIndexedDB.databases.get(name) ?? new Map();
-        mockIndexedDB.databases.set(name, store);
-
-        return {
-          objectStore: vi.fn().mockReturnValue({
-            put: vi.fn().mockImplementation((value: unknown, key: string) => {
-              store.set(key, value);
-              return { onerror: null, onsuccess: null };
-            }),
-            get: vi.fn().mockImplementation((key: string) => {
-              return { 
-                result: store.get(key),
-                onerror: null, 
-                onsuccess: null 
-              };
-            }),
-            delete: vi.fn().mockImplementation((key: string) => {
-              store.delete(key);
-              return { onerror: null, onsuccess: null };
-            }),
-            getAllKeys: vi.fn().mockImplementation(() => ({
-              result: Array.from(store.keys()),
-              onerror: null,
-              onsuccess: null,
-            })),
-            clear: vi.fn().mockImplementation(() => {
-              store.clear();
-              return { onerror: null, onsuccess: null };
-            }),
-          }),
-          oncomplete: null,
-        };
-      }),
-      close: vi.fn(),
-    };
-
-    const request = {
-      result: db,
-      error: null,
-      onerror: null as ((e: Event) => void) | null,
-      onsuccess: null as ((e: Event) => void) | null,
-      onupgradeneeded: null as ((e: Event) => void) | null,
-    };
-
-    setTimeout(() => {
-      if (request.onsuccess) {
-        request.onsuccess(new Event('success'));
-      }
-    }, 0);
-
-    return request;
-  }),
-};
-
-Object.defineProperty(globalThis, 'indexedDB', {
-  value: mockIndexedDB,
-  writable: true,
-});
-
-// Mock localStorage
+// Mock localStorage (simple key-value storage, doesn't need real implementation)
 const localStorageMock = {
   store: new Map<string, string>(),
   getItem: vi.fn((key: string) => localStorageMock.store.get(key) ?? null),
@@ -139,12 +43,20 @@ const localStorageMock = {
   }),
 };
 
-Object.defineProperty(window, 'localStorage', {
+Object.defineProperty(globalThis, 'localStorage', {
   value: localStorageMock,
   writable: true,
 });
 
-// Mock sessionStorage
+// Also set on window for browser-like environment
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'localStorage', {
+    value: localStorageMock,
+    writable: true,
+  });
+}
+
+// Mock sessionStorage (simple key-value storage, doesn't need real implementation)
 const sessionStorageMock = {
   store: new Map<string, string>(),
   getItem: vi.fn((key: string) => sessionStorageMock.store.get(key) ?? null),
@@ -166,15 +78,32 @@ const sessionStorageMock = {
   }),
 };
 
-Object.defineProperty(window, 'sessionStorage', {
+Object.defineProperty(globalThis, 'sessionStorage', {
   value: sessionStorageMock,
   writable: true,
 });
+
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'sessionStorage', {
+    value: sessionStorageMock,
+    writable: true,
+  });
+}
 
 // Clear stores between tests
 beforeEach(() => {
   localStorageMock.store.clear();
   sessionStorageMock.store.clear();
-  mockIndexedDB.databases.clear();
   vi.clearAllMocks();
+});
+
+// Clean up IndexedDB after each test
+afterEach(async () => {
+  // Delete all databases to ensure clean state
+  const databases = await indexedDB.databases();
+  for (const db of databases) {
+    if (db.name) {
+      indexedDB.deleteDatabase(db.name);
+    }
+  }
 });
