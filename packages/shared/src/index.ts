@@ -65,6 +65,10 @@ export {
   isValidSignatureTimestamp,
   generateNonce,
   SIGNATURE_MAX_AGE_SECONDS,
+  // Password validation
+  validatePassword,
+  passwordSchema,
+  PASSWORD_REQUIREMENTS,
 } from './validation.js';
 
 // Re-export validation types
@@ -75,4 +79,6 @@ export type {
   UploadRequest,
   UserRegistration,
   Pagination,
+  PasswordStrength,
+  PasswordValidationResult,
 } from './validation.js';

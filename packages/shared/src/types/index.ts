@@ -141,6 +141,8 @@ export interface EncryptedKeyRecord {
   iv: number[];
   encryptedKey: number[];
   createdAt: number;
+  /** SHA-256 checksum of encrypted data for integrity verification */
+  checksum?: string;
 }
 
 /** API error response */

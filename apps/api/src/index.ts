@@ -6,6 +6,7 @@ import { secureHeaders } from 'hono/secure-headers';
 import { timing } from 'hono/timing';
 
 import { errorHandler } from './middleware/error.js';
+import { csrfProtection } from './middleware/csrf.js';
 import { healthRoutes } from './routes/health.js';
 import { evidenceRoutes } from './routes/evidence.js';
 import { userRoutes } from './routes/user.js';
@@ -26,12 +27,22 @@ app.use(
   cors({
     origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'X-DID'],
+    allowHeaders: [
+      'Content-Type', 
+      'Authorization', 
+      'X-DID', 
+      'X-Wallet-Address', 
+      'X-Timestamp', 
+      'X-Signature'
+    ],
     exposeHeaders: ['X-Request-Id'],
     maxAge: 3600,
     credentials: true,
   })
 );
+
+// CSRF protection (after CORS, before routes)
+app.use('*', csrfProtection);
 
 // Logging and timing middleware
 app.use('*', logger());

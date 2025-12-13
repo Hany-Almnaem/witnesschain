@@ -356,3 +356,147 @@ export function createAuthMessage(
     'This signature authorizes this API request.',
   ].join('\n');
 }
+
+// ============================================================================
+// Password Validation
+// ============================================================================
+
+/** Password strength levels */
+export type PasswordStrength = 'weak' | 'fair' | 'good' | 'strong';
+
+/** Password validation result */
+export interface PasswordValidationResult {
+  isValid: boolean;
+  strength: PasswordStrength;
+  score: number;
+  errors: string[];
+  suggestions: string[];
+}
+
+/** Minimum requirements for password acceptance */
+export const PASSWORD_REQUIREMENTS = {
+  MIN_LENGTH: 12, // Increased from 8 for better security
+  MIN_STRENGTH: 'fair' as PasswordStrength,
+  REQUIRE_UPPERCASE: true,
+  REQUIRE_LOWERCASE: true,
+  REQUIRE_NUMBER: true,
+  REQUIRE_SPECIAL: false, // Recommended but not required
+} as const;
+
+/**
+ * Validate password strength and requirements
+ * Returns detailed validation result with errors and suggestions
+ */
+export function validatePassword(password: string): PasswordValidationResult {
+  const errors: string[] = [];
+  const suggestions: string[] = [];
+  let score = 0;
+  
+  // Length checks
+  if (password.length < PASSWORD_REQUIREMENTS.MIN_LENGTH) {
+    errors.push(`Password must be at least ${PASSWORD_REQUIREMENTS.MIN_LENGTH} characters`);
+  } else {
+    score += 1;
+  }
+  
+  if (password.length >= 16) {
+    score += 1;
+    suggestions.push('Great length!');
+  } else {
+    suggestions.push('Consider using 16+ characters for extra security');
+  }
+  
+  // Character class checks
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasLowercase = /[a-z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecial = /[^A-Za-z0-9]/.test(password);
+  
+  if (PASSWORD_REQUIREMENTS.REQUIRE_UPPERCASE && !hasUppercase) {
+    errors.push('Password must contain at least one uppercase letter');
+  } else if (hasUppercase) {
+    score += 1;
+  }
+  
+  if (PASSWORD_REQUIREMENTS.REQUIRE_LOWERCASE && !hasLowercase) {
+    errors.push('Password must contain at least one lowercase letter');
+  } else if (hasLowercase) {
+    score += 1;
+  }
+  
+  if (PASSWORD_REQUIREMENTS.REQUIRE_NUMBER && !hasNumber) {
+    errors.push('Password must contain at least one number');
+  } else if (hasNumber) {
+    score += 1;
+  }
+  
+  if (hasSpecial) {
+    score += 1;
+    suggestions.push('Good use of special characters!');
+  } else if (PASSWORD_REQUIREMENTS.REQUIRE_SPECIAL) {
+    errors.push('Password must contain at least one special character');
+  } else {
+    suggestions.push('Adding special characters would improve strength');
+  }
+  
+  // Common password patterns to avoid
+  const commonPatterns = [
+    /^(.)\1+$/, // All same character
+    /^(012|123|234|345|456|567|678|789|890)+$/i, // Sequential numbers
+    /^(abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz)+$/i, // Sequential letters
+    /password/i,
+    /witness/i,
+    /chain/i,
+    /^qwerty/i,
+    /^asdfgh/i,
+  ];
+  
+  for (const pattern of commonPatterns) {
+    if (pattern.test(password)) {
+      errors.push('Password contains common patterns that are easy to guess');
+      score = Math.max(0, score - 2);
+      break;
+    }
+  }
+  
+  // Calculate strength
+  let strength: PasswordStrength;
+  if (score <= 2) {
+    strength = 'weak';
+  } else if (score <= 3) {
+    strength = 'fair';
+  } else if (score <= 4) {
+    strength = 'good';
+  } else {
+    strength = 'strong';
+  }
+  
+  // Check minimum strength requirement
+  const strengthOrder: PasswordStrength[] = ['weak', 'fair', 'good', 'strong'];
+  const minStrengthIndex = strengthOrder.indexOf(PASSWORD_REQUIREMENTS.MIN_STRENGTH);
+  const currentStrengthIndex = strengthOrder.indexOf(strength);
+  
+  if (currentStrengthIndex < minStrengthIndex) {
+    errors.push(`Password strength must be at least "${PASSWORD_REQUIREMENTS.MIN_STRENGTH}"`);
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    strength,
+    score,
+    errors,
+    suggestions: errors.length === 0 ? suggestions : [],
+  };
+}
+
+/** Zod schema for password validation */
+export const passwordSchema = z
+  .string()
+  .min(PASSWORD_REQUIREMENTS.MIN_LENGTH, 
+    `Password must be at least ${PASSWORD_REQUIREMENTS.MIN_LENGTH} characters`)
+  .refine(
+    (password) => validatePassword(password).isValid,
+    (password) => ({
+      message: validatePassword(password).errors.join('. '),
+    })
+  );

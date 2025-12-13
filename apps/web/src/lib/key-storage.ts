@@ -49,6 +49,118 @@ interface RateLimitState {
 
 const rateLimitState = new Map<string, RateLimitState>();
 
+// ============================================================================
+// Cross-Tab Coordination (BroadcastChannel)
+// ============================================================================
+
+/**
+ * BroadcastChannel for coordinating key operations across browser tabs
+ * Prevents race conditions when multiple tabs access the same keys
+ */
+let keyOperationChannel: BroadcastChannel | null = null;
+
+interface KeyOperationMessage {
+  type: 'KEY_OPERATION_START' | 'KEY_OPERATION_END' | 'KEY_UPDATED' | 'KEY_DELETED';
+  did: string;
+  tabId: string;
+  timestamp: number;
+}
+
+// Generate unique tab ID
+const TAB_ID = typeof crypto !== 'undefined' && crypto.randomUUID 
+  ? crypto.randomUUID() 
+  : Math.random().toString(36).substring(2);
+
+/**
+ * Initialize the broadcast channel for cross-tab coordination
+ */
+function getKeyChannel(): BroadcastChannel | null {
+  if (typeof BroadcastChannel === 'undefined') {
+    return null; // Not supported in this environment
+  }
+  
+  if (!keyOperationChannel) {
+    keyOperationChannel = new BroadcastChannel('witnesschain-key-ops');
+  }
+  
+  return keyOperationChannel;
+}
+
+/**
+ * Notify other tabs about key operation
+ */
+function notifyKeyOperation(type: KeyOperationMessage['type'], did: string): void {
+  const channel = getKeyChannel();
+  if (channel) {
+    const message: KeyOperationMessage = {
+      type,
+      did,
+      tabId: TAB_ID,
+      timestamp: Date.now(),
+    };
+    channel.postMessage(message);
+  }
+}
+
+/**
+ * Subscribe to key operation notifications from other tabs
+ * @param callback - Function to call when key operations occur in other tabs
+ * @returns Cleanup function to unsubscribe
+ */
+export function onKeyOperationFromOtherTab(
+  callback: (message: KeyOperationMessage) => void
+): () => void {
+  const channel = getKeyChannel();
+  if (!channel) {
+    return () => {}; // No-op cleanup if not supported
+  }
+  
+  const handler = (event: MessageEvent<KeyOperationMessage>) => {
+    // Only notify about operations from OTHER tabs
+    if (event.data.tabId !== TAB_ID) {
+      callback(event.data);
+    }
+  };
+  
+  channel.addEventListener('message', handler);
+  
+  return () => {
+    channel.removeEventListener('message', handler);
+  };
+}
+
+// ============================================================================
+// Data Integrity (Checksums)
+// ============================================================================
+
+/**
+ * Custom error for data integrity failures
+ */
+export class DataIntegrityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DataIntegrityError';
+  }
+}
+
+/**
+ * Calculate SHA-256 checksum of encrypted key data
+ */
+async function calculateChecksum(encryptedKey: number[]): Promise<string> {
+  const data = new Uint8Array(encryptedKey);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Verify checksum matches the encrypted data
+ */
+async function verifyChecksum(encryptedKey: number[], checksum: string): Promise<boolean> {
+  const calculated = await calculateChecksum(encryptedKey);
+  return calculated === checksum;
+}
+
 /**
  * Custom error for rate limiting
  */
@@ -236,13 +348,20 @@ export async function storeSecretKey(
     secretKey.buffer as ArrayBuffer
   );
 
+  // Convert encrypted key to array for storage
+  const encryptedKeyArray = Array.from(new Uint8Array(encryptedKey));
+  
+  // Calculate checksum for integrity verification
+  const checksum = await calculateChecksum(encryptedKeyArray);
+
   // Prepare record for storage
   const record: EncryptedKeyRecord = {
     did,
     salt: Array.from(salt),
     iv: Array.from(iv),
-    encryptedKey: Array.from(new Uint8Array(encryptedKey)),
+    encryptedKey: encryptedKeyArray,
     createdAt: Date.now(),
+    checksum,
   };
 
   // Store in IndexedDB
@@ -258,6 +377,8 @@ export async function storeSecretKey(
     };
 
     request.onsuccess = () => {
+      // Notify other tabs that a key was updated
+      notifyKeyOperation('KEY_UPDATED', did);
       resolve();
     };
 
@@ -307,6 +428,16 @@ export async function retrieveSecretKey(
     return null;
   }
 
+  // Verify data integrity if checksum is present
+  if (record.checksum) {
+    const isValid = await verifyChecksum(record.encryptedKey, record.checksum);
+    if (!isValid) {
+      throw new DataIntegrityError(
+        'Encrypted key data has been corrupted. Data integrity check failed.'
+      );
+    }
+  }
+
   // Convert password to buffer early, minimize string exposure
   const passwordBuffer = passwordToBuffer(password);
 
@@ -330,7 +461,11 @@ export async function retrieveSecretKey(
     clearRateLimitState(did);
 
     return new Uint8Array(decryptedKey);
-  } catch {
+  } catch (error) {
+    // Re-throw data integrity errors
+    if (error instanceof DataIntegrityError) {
+      throw error;
+    }
     // Decryption failed - wrong password or corrupted data
     recordFailedAttempt(did);
     return null;
@@ -379,6 +514,8 @@ export async function deleteSecretKey(did: string): Promise<void> {
     };
 
     request.onsuccess = () => {
+      // Notify other tabs that a key was deleted
+      notifyKeyOperation('KEY_DELETED', did);
       resolve();
     };
 
@@ -464,6 +601,8 @@ export async function clearAllKeys(): Promise<void> {
     };
 
     request.onsuccess = () => {
+      // Notify other tabs that all keys were cleared
+      notifyKeyOperation('KEY_DELETED', '*');
       resolve();
     };
 

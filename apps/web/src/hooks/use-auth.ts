@@ -81,6 +81,7 @@ export function useAuth(): UseAuthReturn {
   const isConnected = useAuthStore(selectIsConnected);
 
   // Sync wagmi state with auth store
+  // SECURITY: Continuously verify wallet connection matches session
   useEffect(() => {
     if (wagmiConnected && address && chainId) {
       store.setWalletConnected(address, chainId);
@@ -88,6 +89,20 @@ export function useAuth(): UseAuthReturn {
       store.setWalletDisconnected();
     }
   }, [wagmiConnected, address, chainId, store]);
+  
+  // SECURITY: Verify wallet address matches session on every render cycle
+  // This catches cases where wallet account changes without triggering disconnect
+  useEffect(() => {
+    if (store.session && address) {
+      const sessionAddress = store.session.walletAddress.toLowerCase();
+      const currentAddress = address.toLowerCase();
+      
+      if (sessionAddress !== currentAddress) {
+        // Wallet changed - security violation, sign out immediately
+        store.signOut();
+      }
+    }
+  }, [store, address]);
 
   // Restore session on mount
   useEffect(() => {

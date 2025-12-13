@@ -36,29 +36,11 @@ interface PasswordPromptProps {
   className?: string;
 }
 
-/**
- * Password strength levels
- */
-type PasswordStrength = 'weak' | 'fair' | 'good' | 'strong';
-
-/**
- * Calculate password strength
- */
-function getPasswordStrength(password: string): PasswordStrength {
-  let score = 0;
-
-  if (password.length >= 8) score++;
-  if (password.length >= 12) score++;
-  if (/[A-Z]/.test(password)) score++;
-  if (/[a-z]/.test(password)) score++;
-  if (/[0-9]/.test(password)) score++;
-  if (/[^A-Za-z0-9]/.test(password)) score++;
-
-  if (score <= 2) return 'weak';
-  if (score <= 3) return 'fair';
-  if (score <= 4) return 'good';
-  return 'strong';
-}
+import { 
+  validatePassword, 
+  PASSWORD_REQUIREMENTS,
+  type PasswordStrength,
+} from '@witnesschain/shared';
 
 const strengthColors: Record<PasswordStrength, string> = {
   weak: 'bg-red-500',
@@ -90,27 +72,30 @@ export function PasswordPrompt({
   const [localError, setLocalError] = useState<string | null>(null);
 
   const isCreate = mode === 'create';
-  const strength = isCreate ? getPasswordStrength(password) : null;
+  const validation = isCreate ? validatePassword(password) : null;
+  const strength = validation?.strength ?? null;
 
   const handleSubmit = useCallback(
     async (e: FormEvent) => {
       e.preventDefault();
       setLocalError(null);
 
-      // Validation
-      if (password.length < 8) {
-        setLocalError('Password must be at least 8 characters');
-        return;
-      }
-
+      // Validation for create mode - use shared validation
       if (isCreate) {
-        if (strength === 'weak') {
-          setLocalError('Please choose a stronger password');
+        const result = validatePassword(password);
+        if (!result.isValid) {
+          setLocalError(result.errors[0] || 'Please choose a stronger password');
           return;
         }
 
         if (password !== confirmPassword) {
           setLocalError('Passwords do not match');
+          return;
+        }
+      } else {
+        // Unlock mode - just check minimum length
+        if (password.length < 1) {
+          setLocalError('Password is required');
           return;
         }
       }
@@ -121,7 +106,7 @@ export function PasswordPrompt({
         setLocalError(err instanceof Error ? err.message : 'An error occurred');
       }
     },
-    [password, confirmPassword, isCreate, strength, onSubmit]
+    [password, confirmPassword, isCreate, onSubmit]
   );
 
   const displayError = error || localError;

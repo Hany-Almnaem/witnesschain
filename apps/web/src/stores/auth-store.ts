@@ -84,6 +84,7 @@ export const useAuthStore = create<AuthState>()(
     /**
      * Called when wallet connects
      * Checks if user exists and sets appropriate status
+     * Validates that session wallet matches connected wallet
      */
     setWalletConnected: async (address: string, chainId: number) => {
       const normalizedAddress = address.toLowerCase();
@@ -102,8 +103,33 @@ export const useAuthStore = create<AuthState>()(
         
         // Check for existing session
         const existingSession = getSession();
-        if (existingSession && existingSession.walletAddress === normalizedAddress) {
-          // Resume existing session
+        if (existingSession) {
+          // SECURITY: Verify session wallet matches connected wallet
+          if (existingSession.walletAddress !== normalizedAddress) {
+            // Wallet changed - invalidate session for security
+            clearSession();
+            // Determine appropriate status for new wallet
+            if (userExists && existingDid) {
+              set({
+                status: 'needs_password',
+                did: existingDid,
+                isNewUser: false,
+                isLoading: false,
+                session: null,
+              });
+            } else {
+              set({
+                status: 'needs_setup',
+                isNewUser: true,
+                isLoading: false,
+                session: null,
+                did: null,
+              });
+            }
+            return;
+          }
+          
+          // Session wallet matches - resume existing session
           set({
             status: 'authenticated',
             session: existingSession,
