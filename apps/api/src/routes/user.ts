@@ -21,6 +21,52 @@ import {
 
 export const userRoutes = new Hono();
 
+// ============================================================================
+// Nonce Store for Replay Attack Prevention
+// ============================================================================
+
+/**
+ * In-memory nonce store with TTL cleanup
+ * In production, consider using Redis with TTL for distributed systems
+ */
+interface NonceEntry {
+  usedAt: number;
+}
+
+const usedNonces = new Map<string, NonceEntry>();
+const NONCE_TTL_MS = 10 * 60 * 1000; // 10 minutes (2x signature max age)
+
+/**
+ * Clean up expired nonces periodically
+ */
+function cleanupExpiredNonces(): void {
+  const now = Date.now();
+  for (const [nonce, entry] of usedNonces.entries()) {
+    if (now - entry.usedAt > NONCE_TTL_MS) {
+      usedNonces.delete(nonce);
+    }
+  }
+}
+
+// Run cleanup every 5 minutes
+setInterval(cleanupExpiredNonces, 5 * 60 * 1000);
+
+/**
+ * Check if nonce has been used and mark it as used
+ * @returns true if nonce was already used (replay attack), false if new
+ */
+function checkAndMarkNonce(nonce: string): boolean {
+  if (usedNonces.has(nonce)) {
+    return true; // Already used - replay attack
+  }
+  usedNonces.set(nonce, { usedAt: Date.now() });
+  return false; // New nonce - OK
+}
+
+// ============================================================================
+// Schemas
+// ============================================================================
+
 /**
  * User registration schema
  */
@@ -37,6 +83,7 @@ const registerSchema = z.object({
     .transform(val => val?.toLowerCase()),
   signature: z.string().optional(),
   timestamp: z.number().optional(),
+  nonce: z.string().min(16).max(64).optional(), // UUID or hex string
 });
 
 /**
@@ -55,7 +102,7 @@ const updateProfileSchema = z.object({
  * POST /api/users/register
  */
 userRoutes.post('/register', zValidator('json', registerSchema), async (c) => {
-  const { did, publicKey, walletAddress, signature, timestamp } = c.req.valid('json');
+  const { did, publicKey, walletAddress, signature, timestamp, nonce } = c.req.valid('json');
 
   // Check if user already exists
   const existingUser = await db.query.users.findFirst({
@@ -86,8 +133,17 @@ userRoutes.post('/register', zValidator('json', registerSchema), async (c) => {
       throw Errors.badRequest('Signature timestamp expired or invalid');
     }
     
-    // Reconstruct the expected message that was signed
-    const expectedMessage = createLinkingChallenge(walletAddress, did, timestamp);
+    // Validate nonce is provided and not already used (replay attack prevention)
+    if (!nonce) {
+      throw Errors.badRequest('Nonce is required for wallet registration');
+    }
+    
+    if (checkAndMarkNonce(nonce)) {
+      throw Errors.badRequest('Nonce already used - possible replay attack');
+    }
+    
+    // Reconstruct the expected message that was signed (include nonce)
+    const expectedMessage = createLinkingChallenge(walletAddress, did, timestamp, nonce);
     
     // Verify the signature matches the wallet address
     try {

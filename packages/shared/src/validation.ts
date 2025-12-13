@@ -244,6 +244,26 @@ export function getFileSizeLimitString(): string {
 export const SIGNATURE_MAX_AGE_SECONDS = 300;
 
 /**
+ * Generate a cryptographically secure nonce
+ * Uses crypto.randomUUID() when available, falls back to random hex string
+ */
+export function generateNonce(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for environments without randomUUID
+  const bytes = new Uint8Array(16);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < 16; i++) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
  * Create a challenge message for wallet signature
  * This links the wallet address to the DID
  * 
@@ -252,16 +272,18 @@ export const SIGNATURE_MAX_AGE_SECONDS = 300;
  * @param walletAddress - The wallet address (will be normalized to lowercase)
  * @param did - The DID to link
  * @param timestamp - Unix timestamp in seconds
+ * @param nonce - Unique nonce to prevent replay attacks
  * @returns Challenge message string
  */
 export function createLinkingChallenge(
   walletAddress: string,
   did: string,
-  timestamp: number
+  timestamp: number,
+  nonce?: string
 ): string {
   const normalizedAddress = walletAddress.toLowerCase();
   
-  return [
+  const lines = [
     'WitnessChain Identity Verification',
     '',
     'This signature links your wallet to your WitnessChain identity.',
@@ -269,9 +291,17 @@ export function createLinkingChallenge(
     `Wallet: ${normalizedAddress}`,
     `Identity: ${did}`,
     `Timestamp: ${timestamp}`,
-    '',
-    'This request will not trigger a blockchain transaction or cost any gas fees.',
-  ].join('\n');
+  ];
+  
+  // Add nonce if provided (for replay protection)
+  if (nonce) {
+    lines.push(`Nonce: ${nonce}`);
+  }
+  
+  lines.push('');
+  lines.push('This request will not trigger a blockchain transaction or cost any gas fees.');
+  
+  return lines.join('\n');
 }
 
 /**

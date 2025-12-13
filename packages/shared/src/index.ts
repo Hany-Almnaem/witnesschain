@@ -63,6 +63,7 @@ export {
   createLinkingChallenge,
   createAuthMessage,
   isValidSignatureTimestamp,
+  generateNonce,
   SIGNATURE_MAX_AGE_SECONDS,
 } from './validation.js';
 

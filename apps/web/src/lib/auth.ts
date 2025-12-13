@@ -14,6 +14,7 @@
  */
 
 import type { Session } from '@witnesschain/shared';
+import { generateNonce } from '@witnesschain/shared';
 
 import { generateDIDKeyPair, restoreDIDFromSecretKey, createLinkingChallenge } from './did';
 import { 
@@ -249,14 +250,16 @@ export async function authenticateUser(
   // Request wallet signature to link wallet to DID
   if (signMessage) {
     const timestamp = Math.floor(Date.now() / 1000);
-    const challenge = createLinkingChallenge(normalizedAddress, did, timestamp);
+    const nonce = generateNonce(); // Prevent replay attacks
+    const challenge = createLinkingChallenge(normalizedAddress, did, timestamp, nonce);
     
     try {
       const signature = await signMessage(challenge);
       
-      // Register with backend
+      // Register with backend (include nonce for replay protection)
       await registerUserOnBackend({
         did,
+        nonce,
         publicKey,
         walletAddress: normalizedAddress,
         signature,
@@ -366,6 +369,7 @@ async function registerUserOnBackend(params: {
   walletAddress: string;
   signature?: string;
   timestamp?: number;
+  nonce?: string;
 }): Promise<void> {
   const apiUrl = getApiUrl();
   
