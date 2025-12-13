@@ -61,6 +61,7 @@ export {
   getFileSizeLimitString,
   // Auth utilities
   createLinkingChallenge,
+  createAuthMessage,
   isValidSignatureTimestamp,
   SIGNATURE_MAX_AGE_SECONDS,
 } from './validation.js';

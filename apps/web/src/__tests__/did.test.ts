@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import {
+import { 
   generateDIDKeyPair,
   restoreDIDFromSecretKey,
   signWithDID,
@@ -136,33 +136,33 @@ describe('DID Signing and Verification', () => {
 });
 
 describe('DID Validation', () => {
-  it('should validate correct did:key format', () => {
-    const validDids = [
-      'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
-      'did:key:z6MktBb8J3uE2A5JB9u3aEUPQD8LWXkqYXhZjEq2tKoDeRz',
-    ];
+    it('should validate correct did:key format', () => {
+      const validDids = [
+        'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
+        'did:key:z6MktBb8J3uE2A5JB9u3aEUPQD8LWXkqYXhZjEq2tKoDeRz',
+      ];
 
-    validDids.forEach(did => {
+      validDids.forEach(did => {
       expect(isValidDID(did)).toBe(true);
+      });
     });
-  });
 
-  it('should reject invalid DID formats', () => {
-    const invalidDids = [
+    it('should reject invalid DID formats', () => {
+      const invalidDids = [
       'did:key:invalid',
       'did:web:example.com',
-      'not-a-did',
-      '',
-      'did:key:',
+        'not-a-did',
+        '',
+        'did:key:',
       'did:key:z', // Too short
       null as unknown as string,
       undefined as unknown as string,
-    ];
+      ];
 
-    invalidDids.forEach(did => {
-      expect(isValidDID(did)).toBe(false);
+      invalidDids.forEach(did => {
+        expect(isValidDID(did)).toBe(false);
+      });
     });
-  });
 
   it('should validate generated DIDs', async () => {
     // Generate several DIDs and validate them all
@@ -208,35 +208,35 @@ describe('DID to Identifier', () => {
     
     expect(id1).not.toBe(id2);
   });
-});
+  });
 
-describe('Linking Challenge', () => {
-  it('should create deterministic challenge message', () => {
-    const walletAddress = '0x1234567890123456789012345678901234567890';
-    const did = 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK';
-    const timestamp = 1702400000;
+  describe('Linking Challenge', () => {
+    it('should create deterministic challenge message', () => {
+      const walletAddress = '0x1234567890123456789012345678901234567890';
+      const did = 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK';
+      const timestamp = 1702400000;
 
-    const challenge = createLinkingChallenge(walletAddress, did, timestamp);
+      const challenge = createLinkingChallenge(walletAddress, did, timestamp);
 
-    expect(challenge).toContain('WitnessChain Identity Verification');
+      expect(challenge).toContain('WitnessChain Identity Verification');
     expect(challenge).toContain(walletAddress.toLowerCase()); // Should be normalized
-    expect(challenge).toContain(did);
-    expect(challenge).toContain(timestamp.toString());
-    expect(challenge).toContain('will not trigger a blockchain transaction');
-  });
+      expect(challenge).toContain(did);
+      expect(challenge).toContain(timestamp.toString());
+      expect(challenge).toContain('will not trigger a blockchain transaction');
+    });
 
-  it('should produce same challenge for same inputs', () => {
-    const args = [
-      '0x1234567890123456789012345678901234567890',
-      'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
-      1702400000,
-    ] as const;
+    it('should produce same challenge for same inputs', () => {
+      const args = [
+        '0x1234567890123456789012345678901234567890',
+        'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
+        1702400000,
+      ] as const;
 
-    const challenge1 = createLinkingChallenge(...args);
-    const challenge2 = createLinkingChallenge(...args);
+      const challenge1 = createLinkingChallenge(...args);
+      const challenge2 = createLinkingChallenge(...args);
 
-    expect(challenge1).toBe(challenge2);
-  });
+      expect(challenge1).toBe(challenge2);
+    });
 
   it('should normalize wallet address to lowercase', () => {
     const upperWallet = '0xABCDEF1234567890123456789012345678901234';

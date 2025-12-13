@@ -15,10 +15,10 @@ import 'fake-indexeddb/auto';
 if (typeof globalThis.crypto === 'undefined' || typeof globalThis.crypto.subtle === 'undefined') {
   // Dynamically import for Node.js environments that don't have global crypto
   const { webcrypto } = await import('node:crypto');
-  Object.defineProperty(globalThis, 'crypto', {
+Object.defineProperty(globalThis, 'crypto', {
     value: webcrypto,
-    writable: true,
-  });
+  writable: true,
+});
 }
 
 // Mock localStorage (simple key-value storage, doesn't need real implementation)

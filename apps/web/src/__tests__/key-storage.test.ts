@@ -48,7 +48,7 @@ describe('Key Storage Integration', () => {
       
       // Try to retrieve with wrong password
       const retrievedKey = await retrieveSecretKey(testDid, 'wrong-password');
-      
+
       // Should return null for wrong password
       expect(retrievedKey).toBeNull();
     });
@@ -177,19 +177,19 @@ describe('Key Storage Security Properties', () => {
     
     // Check localStorage for any key-related data
     const localStorageKeys = Object.keys(localStorage);
-    const forbiddenPatterns = [
-      /secretKey/i,
-      /privateKey/i,
-      /encryptedKey/i,
-      /masterKey/i,
-    ];
+      const forbiddenPatterns = [
+        /secretKey/i,
+        /privateKey/i,
+        /encryptedKey/i,
+        /masterKey/i,
+      ];
 
     localStorageKeys.forEach(key => {
-      forbiddenPatterns.forEach(pattern => {
-        expect(key).not.toMatch(pattern);
+        forbiddenPatterns.forEach(pattern => {
+          expect(key).not.toMatch(pattern);
       });
     });
-    
+
     await deleteSecretKey(testDid);
   });
 
@@ -201,34 +201,34 @@ describe('Key Storage Security Properties', () => {
     await storeSecretKey(testKey, 'test-password', testDid);
     
     const sessionStorageKeys = Object.keys(sessionStorage);
-    const forbiddenPatterns = [
-      /secretKey/i,
-      /privateKey/i,
-      /encryptedKey/i,
-      /masterKey/i,
-    ];
+      const forbiddenPatterns = [
+        /secretKey/i,
+        /privateKey/i,
+        /encryptedKey/i,
+        /masterKey/i,
+      ];
 
     sessionStorageKeys.forEach(key => {
-      forbiddenPatterns.forEach(pattern => {
-        expect(key).not.toMatch(pattern);
+        forbiddenPatterns.forEach(pattern => {
+          expect(key).not.toMatch(pattern);
+    });
+  });
+
+    await deleteSecretKey(testDid);
+    });
+
+    it('should not store password anywhere', () => {
+      // Check localStorage
+    Object.keys(localStorage).forEach(key => {
+        expect(key.toLowerCase()).not.toContain('password');
+      });
+
+      // Check sessionStorage
+    Object.keys(sessionStorage).forEach(key => {
+        expect(key.toLowerCase()).not.toContain('password');
       });
     });
-    
-    await deleteSecretKey(testDid);
   });
-
-  it('should not store password anywhere', () => {
-    // Check localStorage
-    Object.keys(localStorage).forEach(key => {
-      expect(key.toLowerCase()).not.toContain('password');
-    });
-
-    // Check sessionStorage
-    Object.keys(sessionStorage).forEach(key => {
-      expect(key.toLowerCase()).not.toContain('password');
-    });
-  });
-});
 
 describe('PBKDF2 Configuration Verification', () => {
   it('should use computationally expensive key derivation', async () => {

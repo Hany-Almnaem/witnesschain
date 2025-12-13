@@ -296,3 +296,33 @@ export function isValidSignatureTimestamp(timestamp: number): boolean {
   
   return true;
 }
+
+/**
+ * Create a message for authenticated API requests
+ * This message is signed by the wallet to prove ownership of the DID
+ * 
+ * IMPORTANT: Must match server-side implementation exactly
+ * 
+ * @param method - HTTP method (GET, POST, etc.)
+ * @param path - Request path (e.g., /api/users/me)
+ * @param timestamp - Unix timestamp in seconds
+ * @param did - The DID making the request
+ * @returns Message string to be signed
+ */
+export function createAuthMessage(
+  method: string,
+  path: string,
+  timestamp: number,
+  did: string
+): string {
+  return [
+    'WitnessChain API Request',
+    '',
+    `Method: ${method}`,
+    `Path: ${path}`,
+    `Timestamp: ${timestamp}`,
+    `Identity: ${did}`,
+    '',
+    'This signature authorizes this API request.',
+  ].join('\n');
+}

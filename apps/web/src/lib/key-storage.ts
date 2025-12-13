@@ -155,38 +155,56 @@ function openDatabase(): Promise<IDBDatabase> {
 }
 
 /**
+ * Convert password string to Uint8Array for secure handling
+ * The returned buffer should be cleared (fill(0)) after use
+ */
+function passwordToBuffer(password: string): Uint8Array {
+  const encoder = new TextEncoder();
+  const encoded = encoder.encode(password);
+  // Create a new Uint8Array to ensure we have a clearable buffer
+  const buffer = new Uint8Array(encoded.length);
+  buffer.set(encoded);
+  return buffer;
+}
+
+/**
  * Derive encryption key from password using PBKDF2
  * This is CPU-intensive by design to resist brute-force attacks
+ * 
+ * @param passwordBuffer - Password as Uint8Array (will be cleared after use)
+ * @param salt - Random salt for key derivation
  */
 async function deriveKeyFromPassword(
-  password: string,
+  passwordBuffer: Uint8Array,
   salt: Uint8Array
 ): Promise<CryptoKey> {
-  const encoder = new TextEncoder();
-  const passwordBuffer = encoder.encode(password);
+  try {
+    // Import password as key material
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      passwordBuffer.buffer as ArrayBuffer,
+      'PBKDF2',
+      false,
+      ['deriveBits', 'deriveKey']
+    );
 
-  // Import password as key material
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    passwordBuffer,
-    'PBKDF2',
-    false,
-    ['deriveBits', 'deriveKey']
-  );
-
-  // Derive AES-GCM key from password
-  return crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt: salt.buffer as ArrayBuffer,
-      iterations: PBKDF2_ITERATIONS,
-      hash: 'SHA-256',
-    },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
-  );
+    // Derive AES-GCM key from password
+    return await crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt: salt.buffer as ArrayBuffer,
+        iterations: PBKDF2_ITERATIONS,
+        hash: 'SHA-256',
+      },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  } finally {
+    // Clear password buffer from memory immediately after importing
+    passwordBuffer.fill(0);
+  }
 }
 
 /**
@@ -205,8 +223,11 @@ export async function storeSecretKey(
   const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
   const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
 
-  // Derive encryption key from password
-  const derivedKey = await deriveKeyFromPassword(password, salt);
+  // Convert password to buffer early, minimize string exposure
+  const passwordBuffer = passwordToBuffer(password);
+  
+  // Derive encryption key from password (passwordBuffer is cleared internally)
+  const derivedKey = await deriveKeyFromPassword(passwordBuffer, salt);
 
   // Encrypt the secret key
   const encryptedKey = await crypto.subtle.encrypt(
@@ -286,14 +307,17 @@ export async function retrieveSecretKey(
     return null;
   }
 
+  // Convert password to buffer early, minimize string exposure
+  const passwordBuffer = passwordToBuffer(password);
+
   try {
     // Convert arrays back to Uint8Arrays
     const salt = new Uint8Array(record.salt);
     const iv = new Uint8Array(record.iv);
     const encryptedKey = new Uint8Array(record.encryptedKey);
 
-    // Derive decryption key from password
-    const derivedKey = await deriveKeyFromPassword(password, salt);
+    // Derive decryption key from password (passwordBuffer is cleared internally)
+    const derivedKey = await deriveKeyFromPassword(passwordBuffer, salt);
 
     // Decrypt the secret key
     const decryptedKey = await crypto.subtle.decrypt(
@@ -304,7 +328,7 @@ export async function retrieveSecretKey(
 
     // Success - clear rate limit state
     clearRateLimitState(did);
-    
+
     return new Uint8Array(decryptedKey);
   } catch {
     // Decryption failed - wrong password or corrupted data

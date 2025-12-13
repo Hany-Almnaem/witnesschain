@@ -13,6 +13,7 @@ import { verifyMessage } from 'viem';
 
 import { db, users, type NewUser } from '../db/index.js';
 import { Errors } from '../middleware/error.js';
+import { requireAuth, getAuthUser } from '../middleware/auth.js';
 import { 
   createLinkingChallenge, 
   isValidSignatureTimestamp 
@@ -144,24 +145,15 @@ userRoutes.post('/register', zValidator('json', registerSchema), async (c) => {
 /**
  * Get current user profile
  * GET /api/users/me
- * Requires authentication (X-DID header)
+ * Requires authenticated request with wallet signature
  * 
  * NOTE: This route MUST be registered before /:did to avoid being caught by the param route
  */
-userRoutes.get('/me', async (c) => {
-  const did = c.req.header('X-DID');
-
-  if (!did) {
-    throw Errors.unauthorized('Authentication required');
-  }
-
-  // Validate DID format
-  if (!did.startsWith('did:key:z')) {
-    throw Errors.badRequest('Invalid DID format');
-  }
+userRoutes.get('/me', requireAuth, async (c) => {
+  const authUser = getAuthUser(c);
 
   const user = await db.query.users.findFirst({
-    where: eq(users.id, did),
+    where: eq(users.id, authUser.did),
   });
 
   if (!user) {
@@ -217,20 +209,15 @@ userRoutes.get('/:did', async (c) => {
 /**
  * Update user profile
  * PATCH /api/users/me
- * Requires authentication (X-DID header)
+ * Requires authenticated request with wallet signature
  */
-userRoutes.patch('/me', zValidator('json', updateProfileSchema), async (c) => {
-  const did = c.req.header('X-DID');
-
-  if (!did) {
-    throw Errors.unauthorized('Authentication required');
-  }
-
+userRoutes.patch('/me', requireAuth, zValidator('json', updateProfileSchema), async (c) => {
+  const authUser = getAuthUser(c);
   const { walletAddress } = c.req.valid('json');
 
   // Check user exists
   const user = await db.query.users.findFirst({
-    where: eq(users.id, did),
+    where: eq(users.id, authUser.did),
   });
 
   if (!user) {
@@ -247,7 +234,7 @@ userRoutes.patch('/me', zValidator('json', updateProfileSchema), async (c) => {
       walletAddress: walletAddress ?? user.walletAddress,
       updatedAt,
     })
-    .where(eq(users.id, did));
+    .where(eq(users.id, authUser.did));
 
   return c.json({
     success: true,
@@ -298,18 +285,19 @@ userRoutes.get('/wallet/:address', async (c) => {
  * Delete user (for testing/development only)
  * DELETE /api/users/:did
  * Only available in development mode
+ * Requires authenticated request with wallet signature
  */
-userRoutes.delete('/:did', async (c) => {
+userRoutes.delete('/:did', requireAuth, async (c) => {
   // Only allow in development
   if (process.env.NODE_ENV === 'production') {
     throw Errors.forbidden('Not available in production');
   }
 
   const did = c.req.param('did');
-  const authDid = c.req.header('X-DID');
+  const authUser = getAuthUser(c);
 
   // Must be authenticated as the same user
-  if (authDid !== did) {
+  if (authUser.did !== did) {
     throw Errors.forbidden('Can only delete your own account');
   }
 
