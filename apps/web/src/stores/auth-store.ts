@@ -88,6 +88,24 @@ export const useAuthStore = create<AuthState>()(
      */
     setWalletConnected: async (address: string, chainId: number) => {
       const normalizedAddress = address.toLowerCase();
+      const currentState = get();
+      
+      // Guard: Don't re-process if already loading or if same wallet already connected
+      if (currentState.isLoading) {
+        return;
+      }
+      
+      // Guard: If already authenticated with same wallet, skip
+      if (currentState.status === 'authenticated' && 
+          currentState.walletAddress === normalizedAddress) {
+        return;
+      }
+      
+      // Guard: If already in a valid state for this wallet, skip
+      if ((currentState.status === 'needs_password' || currentState.status === 'needs_setup') &&
+          currentState.walletAddress === normalizedAddress) {
+        return;
+      }
       
       set({
         walletAddress: normalizedAddress,
@@ -298,10 +316,12 @@ export const useAuthStore = create<AuthState>()(
       const session = getSession();
       
       if (session) {
+        // Restore full session state including authenticated status
         set({
+          status: 'authenticated',
           session,
           did: session.did,
-          // Status will be set when wallet reconnects
+          walletAddress: session.walletAddress,
         });
       }
     },

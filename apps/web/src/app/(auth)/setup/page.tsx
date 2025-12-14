@@ -39,13 +39,13 @@ export default function SetupPage() {
 
     // No wallet connected - go to connect page
     if (status === 'disconnected') {
-      router.replace('/auth/connect');
+      router.replace('/connect');
       return;
     }
 
     // Existing user - go to unlock page
     if (status === 'needs_password') {
-      router.replace('/auth/unlock');
+      router.replace('/unlock');
       return;
     }
   }, [status, isAuthenticated, isLoading, router]);
@@ -57,7 +57,7 @@ export default function SetupPage() {
 
   // Cancel and disconnect
   const handleCancel = () => {
-    router.replace('/auth/connect');
+    router.replace('/connect');
   };
 
   // Clear error when user starts typing

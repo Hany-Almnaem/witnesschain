@@ -21,7 +21,7 @@ export default function HomePage() {
             </p>
             <div className="mt-10 flex items-center justify-center gap-x-6">
               <Button asChild size="lg">
-                <Link href="/auth/connect">Get Started</Link>
+                <Link href="/connect">Get Started</Link>
               </Button>
               <Button variant="outline" size="lg" asChild>
                 <Link href="/about">Learn More</Link>
@@ -83,7 +83,7 @@ export default function HomePage() {
             </p>
             <div className="mt-10">
               <Button asChild size="lg">
-                <Link href="/auth/connect">Connect Wallet</Link>
+                <Link href="/connect">Connect Wallet</Link>
               </Button>
             </div>
           </div>

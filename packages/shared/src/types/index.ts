@@ -73,7 +73,9 @@ export interface Evidence {
   dataSetId?: string;
   providerAddress?: string;
   encryptedKey: string;
-  nonce: string;
+  ephemeralPublicKey: string;
+  fileNonce: string;
+  keyNonce: string;
   fileSize: number;
   mimeType: string;
   contentHash: string;

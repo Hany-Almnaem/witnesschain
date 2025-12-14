@@ -54,7 +54,7 @@ function LoadingState() {
 export function SessionGuard({
   children,
   fallback,
-  redirectTo = '/auth/connect',
+  redirectTo = '/connect',
 }: SessionGuardProps) {
   const router = useRouter();
   const { isAuthenticated, status, isLoading } = useAuth();
@@ -72,12 +72,12 @@ export function SessionGuard({
       let targetPath = redirectTo;
       
       if (status === 'needs_password') {
-        targetPath = '/auth/unlock';
+        targetPath = '/unlock';
       } else if (status === 'needs_setup') {
-        targetPath = '/auth/setup';
+        targetPath = '/setup';
       } else if (status === 'connected') {
         // Wallet connected but needs auth flow
-        targetPath = '/auth/setup';
+        targetPath = '/setup';
       }
 
       router.replace(targetPath);
@@ -104,7 +104,7 @@ export function SessionGuard({
 export function WalletGuard({
   children,
   fallback,
-  redirectTo = '/auth/connect',
+  redirectTo = '/connect',
 }: SessionGuardProps) {
   const router = useRouter();
   const { isConnected, isLoading } = useAuth();

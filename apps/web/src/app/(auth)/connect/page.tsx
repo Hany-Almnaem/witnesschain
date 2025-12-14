@@ -30,10 +30,10 @@ export default function ConnectPage() {
     // Wallet connected - proceed to appropriate auth step
     switch (status) {
       case 'needs_password':
-        router.replace('/auth/unlock');
+        router.replace('/unlock');
         break;
       case 'needs_setup':
-        router.replace('/auth/setup');
+        router.replace('/setup');
         break;
     }
   }, [status, isAuthenticated, isLoading, router]);

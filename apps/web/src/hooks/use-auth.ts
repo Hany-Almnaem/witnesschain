@@ -19,7 +19,7 @@
 
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useAccount, useConnect, useDisconnect, useSignMessage } from 'wagmi';
 
 import { 
@@ -74,40 +74,67 @@ export function useAuth(): UseAuthReturn {
   const { disconnect: wagmiDisconnect } = useDisconnect();
   const { signMessageAsync } = useSignMessage();
   
-  // Auth store
-  const store = useAuthStore();
+  // Auth store - use selectors for stable references
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const needsAuth = useAuthStore(selectNeedsAuth);
   const isConnected = useAuthStore(selectIsConnected);
+  
+  // Get stable function references from store (these are stable in Zustand)
+  const setWalletConnected = useAuthStore((state) => state.setWalletConnected);
+  const setWalletDisconnected = useAuthStore((state) => state.setWalletDisconnected);
+  const storeSignOut = useAuthStore((state) => state.signOut);
+  const restoreSession = useAuthStore((state) => state.restoreSession);
+  const authenticate = useAuthStore((state) => state.authenticate);
+  const clearError = useAuthStore((state) => state.clearError);
+  const removeFromDevice = useAuthStore((state) => state.removeFromDevice);
+  
+  // Get state values
+  const status = useAuthStore((state) => state.status);
+  const walletAddress = useAuthStore((state) => state.walletAddress);
+  const storeChainId = useAuthStore((state) => state.chainId);
+  const session = useAuthStore((state) => state.session);
+  const did = useAuthStore((state) => state.did);
+  const publicKey = useAuthStore((state) => state.publicKey);
+  const isNewUser = useAuthStore((state) => state.isNewUser);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const error = useAuthStore((state) => state.error);
+  const sessionWalletAddress = useAuthStore((state) => state.session?.walletAddress);
+
+  // Track if we've initialized to prevent duplicate calls
+  const hasInitialized = useRef(false);
+  const lastProcessedAddress = useRef<string | null>(null);
+  
+  // Restore session on mount only (once)
+  useEffect(() => {
+    if (!hasInitialized.current) {
+      hasInitialized.current = true;
+      restoreSession();
+    }
+  }, [restoreSession]);
 
   // Sync wagmi state with auth store
-  // SECURITY: Continuously verify wallet connection matches session
   useEffect(() => {
     if (wagmiConnected && address && chainId) {
-      store.setWalletConnected(address, chainId);
-    } else if (!wagmiConnected) {
-      store.setWalletDisconnected();
+      // Only call setWalletConnected if address changed
+      if (lastProcessedAddress.current !== address.toLowerCase()) {
+        lastProcessedAddress.current = address.toLowerCase();
+        setWalletConnected(address, chainId);
+      }
+    } else if (!wagmiConnected && lastProcessedAddress.current !== null) {
+      lastProcessedAddress.current = null;
+      setWalletDisconnected();
     }
-  }, [wagmiConnected, address, chainId, store]);
+  }, [wagmiConnected, address, chainId, setWalletConnected, setWalletDisconnected]);
   
-  // SECURITY: Verify wallet address matches session on every render cycle
-  // This catches cases where wallet account changes without triggering disconnect
+  // SECURITY: Verify wallet address matches session
   useEffect(() => {
-    if (store.session && address) {
-      const sessionAddress = store.session.walletAddress.toLowerCase();
-      const currentAddress = address.toLowerCase();
-      
-      if (sessionAddress !== currentAddress) {
+    if (sessionWalletAddress && address) {
+      if (sessionWalletAddress.toLowerCase() !== address.toLowerCase()) {
         // Wallet changed - security violation, sign out immediately
-        store.signOut();
+        storeSignOut();
       }
     }
-  }, [store, address]);
-
-  // Restore session on mount
-  useEffect(() => {
-    store.restoreSession();
-  }, [store]);
+  }, [address, sessionWalletAddress, storeSignOut]);
 
   /**
    * Connect wallet using injected connector (MetaMask)
@@ -126,69 +153,69 @@ export function useAuth(): UseAuthReturn {
    */
   const disconnect = useCallback(() => {
     wagmiDisconnect();
-    store.setWalletDisconnected();
-  }, [wagmiDisconnect, store]);
+    setWalletDisconnected();
+  }, [wagmiDisconnect, setWalletDisconnected]);
 
   /**
    * Authenticate with password
    * For new users, this also signs a message to link wallet to DID
    */
-  const authenticate = useCallback(async (password: string) => {
+  const doAuthenticate = useCallback(async (password: string) => {
     // Create a sign function that uses wagmi's signMessageAsync
-    const signFn = store.isNewUser 
+    const signFn = isNewUser 
       ? async (message: string) => signMessageAsync({ message })
       : undefined;
     
-    await store.authenticate(password, signFn);
-  }, [store, signMessageAsync]);
+    await authenticate(password, signFn);
+  }, [isNewUser, signMessageAsync, authenticate]);
 
   /**
    * Sign out (keeps wallet connected and stored key)
    */
   const signOut = useCallback(() => {
-    store.signOut();
-  }, [store]);
+    storeSignOut();
+  }, [storeSignOut]);
 
   /**
-   * Clear error message
+   * Clear error
    */
-  const clearError = useCallback(() => {
-    store.clearError();
-  }, [store]);
+  const doClearError = useCallback(() => {
+    clearError();
+  }, [clearError]);
 
   /**
    * Remove user from device completely
    */
-  const removeFromDevice = useCallback(async () => {
-    await store.removeFromDevice();
+  const doRemoveFromDevice = useCallback(async () => {
+    await removeFromDevice();
     wagmiDisconnect();
-  }, [store, wagmiDisconnect]);
+  }, [removeFromDevice, wagmiDisconnect]);
 
   return {
     // State
-    status: store.status,
+    status,
     isAuthenticated,
     isConnected,
     needsAuth,
-    isLoading: store.isLoading || isPending,
-    error: store.error,
+    isLoading: isLoading || isPending,
+    error,
     
     // User info
-    walletAddress: store.walletAddress,
-    chainId: store.chainId,
-    did: store.did,
-    publicKey: store.publicKey,
-    isNewUser: store.isNewUser,
+    walletAddress,
+    chainId: storeChainId,
+    did,
+    publicKey,
+    isNewUser,
     
     // Wallet actions
     connect,
     disconnect,
     
     // Auth actions
-    authenticate,
+    authenticate: doAuthenticate,
     signOut,
-    clearError,
-    removeFromDevice,
+    clearError: doClearError,
+    removeFromDevice: doRemoveFromDevice,
     
     // Connectors
     connectors,
@@ -199,7 +226,7 @@ export function useAuth(): UseAuthReturn {
 /**
  * Hook for checking if user can access protected content
  */
-export function useRequireAuth(redirectTo = '/auth/connect') {
+export function useRequireAuth(redirectTo = '/connect') {
   const { isAuthenticated, status, isLoading } = useAuth();
   
   useEffect(() => {

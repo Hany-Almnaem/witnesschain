@@ -17,11 +17,11 @@ import { Errors } from './error.js';
  * Get allowed origins from environment or defaults
  */
 function getAllowedOrigins(): string[] {
-  const corsOrigin = process.env.CORS_ORIGIN ?? 'http://localhost:3000';
+  const corsOrigin = process.env.CORS_ORIGIN ?? 'http://localhost:3001';
   const origins = corsOrigin.split(',').map(o => o.trim().toLowerCase());
   
   // Always allow API origin for server-to-server requests
-  const apiPort = process.env.PORT ?? '3001';
+  const apiPort = process.env.PORT ?? '3000';
   origins.push(`http://localhost:${apiPort}`);
   
   return origins;
@@ -57,19 +57,21 @@ function getRequestOrigin(c: Context): string | null {
  * Validates that mutating requests (POST, PUT, PATCH, DELETE)
  * come from allowed origins.
  */
-export async function csrfProtection(c: Context, next: Next): Promise<Response> {
+export async function csrfProtection(c: Context, next: Next): Promise<void | Response> {
   const method = c.req.method.toUpperCase();
   
   // Only check mutating requests
   const mutatingMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
   if (!mutatingMethods.includes(method)) {
-    return next();
+    await next();
+    return;
   }
   
   // Skip CSRF check for health endpoints
   const path = c.req.path;
   if (path.startsWith('/api/health')) {
-    return next();
+    await next();
+    return;
   }
   
   // Get request origin
@@ -86,7 +88,8 @@ export async function csrfProtection(c: Context, next: Next): Promise<Response> 
     
     if (hasCustomHeaders) {
       // Has custom headers - likely a legitimate API request
-      return next();
+      await next();
+      return;
     }
     
     // For requests without Origin AND without custom headers,
@@ -102,7 +105,8 @@ export async function csrfProtection(c: Context, next: Next): Promise<Response> 
     );
     
     if (isSafeContentType) {
-      return next();
+      await next();
+      return;
     }
     
     // No origin, no custom headers, and not a safe content type
@@ -128,20 +132,21 @@ export async function csrfProtection(c: Context, next: Next): Promise<Response> 
     throw Errors.forbidden('Request origin not allowed');
   }
   
-  return next();
+  await next();
 }
 
 /**
  * Strict CSRF middleware that also validates Sec-Fetch-* headers
  * For browsers that support Fetch Metadata
  */
-export async function strictCsrfProtection(c: Context, next: Next): Promise<Response> {
+export async function strictCsrfProtection(c: Context, next: Next): Promise<void | Response> {
   const method = c.req.method.toUpperCase();
   
   // Only check mutating requests
   const mutatingMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
   if (!mutatingMethods.includes(method)) {
-    return next();
+    await next();
+    return;
   }
   
   // Check Sec-Fetch-Site header if present (modern browsers)
@@ -156,6 +161,6 @@ export async function strictCsrfProtection(c: Context, next: Next): Promise<Resp
   }
   
   // Continue with regular CSRF protection
-  return csrfProtection(c, next);
+  await csrfProtection(c, next);
 }
 
