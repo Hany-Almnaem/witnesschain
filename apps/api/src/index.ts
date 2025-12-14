@@ -25,7 +25,7 @@ app.use('*', secureHeaders());
 app.use(
   '*',
   cors({
-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+    origin: 'http://localhost:3001',
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: [
       'Content-Type', 
@@ -80,7 +80,7 @@ app.notFound((c) => {
 });
 
 // Start server
-const port = parseInt(process.env.PORT ?? '3001', 10);
+const port = parseInt(process.env.PORT ?? '3000', 10);
 
 console.info(`
 ╔══════════════════════════════════════════════════════════════╗

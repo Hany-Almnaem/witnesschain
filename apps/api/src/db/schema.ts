@@ -45,9 +45,11 @@ export const evidence = sqliteTable(
     dataSetId: text('data_set_id'), // Synapse data set ID
     providerAddress: text('provider_address'), // Storage Provider address
 
-    // Encryption info
-    encryptedKey: text('encrypted_key').notNull(), // Encrypted file key
-    nonce: text('nonce').notNull(), // Encryption nonce
+    // Encryption info (matches crypto.ts output)
+    encryptedKey: text('encrypted_key').notNull(), // Encrypted symmetric key
+    ephemeralPublicKey: text('ephemeral_public_key').notNull(), // X25519 ephemeral key for decryption
+    fileNonce: text('file_nonce').notNull(), // Nonce for file content encryption
+    keyNonce: text('key_nonce').notNull(), // Nonce for key encryption
 
     // File info
     fileSize: integer('file_size').notNull(),

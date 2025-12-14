@@ -90,10 +90,19 @@ export const evidenceMetadataSchema = z.object({
 
 /**
  * Encryption info schema
+ * 
+ * Matches the output of crypto.ts encryptFile():
+ * - encryptedKey: The symmetric key encrypted with recipient's X25519 public key
+ * - ephemeralPublicKey: Ephemeral X25519 public key used for key encryption (required for decryption)
+ * - fileNonce: Nonce used for file content encryption (XSalsa20-Poly1305)
+ * - keyNonce: Nonce used for symmetric key encryption (Box)
+ * - contentHash: SHA-256 hash of original content (computed before encryption)
  */
 export const encryptionInfoSchema = z.object({
   encryptedKey: z.string().min(1, 'Encrypted key is required'),
-  nonce: z.string().min(1, 'Nonce is required'),
+  ephemeralPublicKey: z.string().min(1, 'Ephemeral public key is required'),
+  fileNonce: z.string().min(1, 'File nonce is required'),
+  keyNonce: z.string().min(1, 'Key nonce is required'),
   contentHash: z.string().regex(/^0x[a-f0-9]{64}$/, 'Invalid content hash'),
 });
 
