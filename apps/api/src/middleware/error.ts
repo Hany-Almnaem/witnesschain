@@ -1,5 +1,7 @@
 import type { Context } from 'hono';
 
+import { StorageError } from '../lib/storage-errors.js';
+
 // Use specific status codes that are valid for JSON responses
 type ErrorStatusCode = 400 | 401 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503;
 
@@ -65,6 +67,18 @@ export function errorHandler(err: Error, c: Context) {
         message: 'Invalid request data. Please check your input.',
       },
       400
+    );
+  }
+
+  // Handle StorageErrors - translate at API boundary
+  if (err instanceof StorageError) {
+    return c.json(
+      {
+        error: err.code,
+        code: err.code,
+        message: err.userMessage,
+      },
+      500
     );
   }
 

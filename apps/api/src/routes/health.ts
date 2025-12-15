@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 
 import { isDatabaseConnected } from '../db/index.js';
+import { isSynapseConnected, getStorageInfo } from '../lib/synapse.js';
 
 export const healthRoutes = new Hono();
 
@@ -9,12 +10,15 @@ export const healthRoutes = new Hono();
  * Returns the status of all services
  */
 healthRoutes.get('/', async (c) => {
-  // Check actual database connectivity
-  const dbConnected = await isDatabaseConnected();
+  // Check actual service connectivity
+  const [dbConnected, synapseConnected] = await Promise.all([
+    isDatabaseConnected(),
+    isSynapseConnected(),
+  ]);
 
   const services = {
     database: dbConnected ? 'connected' : 'disconnected',
-    synapse: 'disconnected' as const, // Will be updated in Phase 4
+    synapse: synapseConnected ? 'connected' : 'disconnected',
     fvm: 'disconnected' as const, // Will be updated in Phase 5
   } as const;
 
@@ -60,4 +64,23 @@ healthRoutes.get('/ready', async (c) => {
   }
 
   return c.json({ status: 'not_ready', reason: 'database_unavailable' }, 503);
+});
+
+/**
+ * Storage service status
+ * Returns detailed information about Filecoin storage configuration
+ */
+healthRoutes.get('/storage', async (c) => {
+  const [connected, info] = await Promise.all([
+    isSynapseConnected(),
+    getStorageInfo(),
+  ]);
+
+  return c.json({
+    status: connected ? 'connected' : 'disconnected',
+    network: info?.network ?? 'unknown',
+    walletAddress: info?.walletAddress ?? null,
+    balance: info?.balance ?? null,
+    configured: info?.walletAddress !== null,
+  });
 });
