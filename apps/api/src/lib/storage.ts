@@ -13,7 +13,8 @@
  * - Errors are translated at this boundary
  */
 
-import { getSynapseClient } from './synapse.js';
+import { FILE_SIZE_LIMITS } from '@witnesschain/shared';
+
 import { validateCid, sanitizeCidForLog } from './cid-validation.js';
 import {
   StorageError,
@@ -22,7 +23,8 @@ import {
   createEmptyFileError,
   createInvalidCidError,
 } from './storage-errors.js';
-import { FILE_SIZE_LIMITS } from '@witnesschain/shared';
+import { getSynapseClient } from './synapse.js';
+
 
 /**
  * Result of a successful file upload
@@ -243,7 +245,7 @@ export interface RetrieveOptions {
  */
 export async function retrieveFromFilecoin(
   pieceCid: string,
-  options?: RetrieveOptions
+  _options?: RetrieveOptions
 ): Promise<Uint8Array> {
   // Validate CID before making request
   const cidValidation = validateCid(pieceCid);

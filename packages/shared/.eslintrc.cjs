@@ -3,7 +3,8 @@ module.exports = {
   root: true,
   extends: [require.resolve('@witnesschain/config/eslint/node')],
   parserOptions: {
-    project: './tsconfig.eslint.json',
+    project: './tsconfig.json',
     tsconfigRootDir: __dirname,
   },
 };
+

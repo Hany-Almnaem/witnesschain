@@ -5,10 +5,10 @@ import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { timing } from 'hono/timing';
 
-import { errorHandler } from './middleware/error.js';
 import { csrfProtection } from './middleware/csrf.js';
-import { healthRoutes } from './routes/health.js';
+import { errorHandler } from './middleware/error.js';
 import { evidenceRoutes } from './routes/evidence.js';
+import { healthRoutes } from './routes/health.js';
 import { userRoutes } from './routes/user.js';
 import { verifyRoutes } from './routes/verify.js';
 

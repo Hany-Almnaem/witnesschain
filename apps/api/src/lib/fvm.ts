@@ -5,7 +5,8 @@
  * Uses ethers.js for contract interaction (consistent with existing backend).
  */
 
-import { ethers, type ContractTransactionReceipt, keccak256, toUtf8Bytes } from 'ethers';
+import { ethers, keccak256, toUtf8Bytes } from 'ethers';
+
 import { getEnv } from './env.js';
 
 /**
@@ -124,8 +125,8 @@ export async function isContractAvailable(): Promise<boolean> {
     const c = getContract();
     if (!c) return false;
 
-    // Try to read the version
-    const version = await c.VERSION();
+    // Try to read the version - returns string from contract
+    const version = (await c.VERSION()) as string;
     return typeof version === 'string' && version.length > 0;
   } catch (error) {
     console.error('[FVM] Contract availability check failed:', error);
@@ -263,19 +264,27 @@ export async function registerEvidenceOnChain(
     // Add 20% buffer
     const gasLimit = (gasEstimate * 120n) / 100n;
 
-    // Send transaction
-    const tx = await c.registerEvidence(
+    // Send transaction - returns ContractTransactionResponse from ethers
+    const tx = (await c.registerEvidence(
       evidenceIdBytes32,
       contentHash,
       pieceCid,
       providerAddress,
       { gasLimit }
-    );
+    )) as ethers.ContractTransactionResponse;
 
     console.info(`[FVM] Transaction sent: ${tx.hash}`);
 
     // Wait for confirmation
-    const receipt: ContractTransactionReceipt = await tx.wait(1);
+    const receipt = await tx.wait(1);
+
+    if (!receipt) {
+      return {
+        success: false,
+        txHash: tx.hash,
+        error: 'Transaction receipt not available',
+      };
+    }
 
     if (receipt.status === 0) {
       return {
@@ -337,12 +346,22 @@ export async function getEvidenceFromChain(evidenceId: string): Promise<OnChainE
     const evidenceIdBytes32 = uuidToBytes32(evidenceId);
 
     // Check if exists first
-    const exists = await c.evidenceExists(evidenceIdBytes32);
+    const exists = (await c.evidenceExists(evidenceIdBytes32)) as boolean;
     if (!exists) {
       return null;
     }
 
-    const result = await c.getEvidence(evidenceIdBytes32);
+    // ethers.js returns tuple as array - type assertion for known contract ABI
+    const result = (await c.getEvidence(evidenceIdBytes32)) as [
+      string, // evidenceId
+      string, // contentHash
+      string, // pieceCid
+      string, // providerAddress
+      string, // submitter
+      bigint, // timestamp
+      bigint, // blockNumber
+      boolean // verified
+    ];
 
     return {
       evidenceId: result[0],
@@ -369,7 +388,7 @@ export async function evidenceExistsOnChain(evidenceId: string): Promise<boolean
 
   try {
     const evidenceIdBytes32 = uuidToBytes32(evidenceId);
-    return await c.evidenceExists(evidenceIdBytes32);
+    return (await c.evidenceExists(evidenceIdBytes32)) as boolean;
   } catch {
     return false;
   }
@@ -384,7 +403,7 @@ export async function isEvidenceVerified(evidenceId: string): Promise<boolean> {
 
   try {
     const evidenceIdBytes32 = uuidToBytes32(evidenceId);
-    return await c.isVerified(evidenceIdBytes32);
+    return (await c.isVerified(evidenceIdBytes32)) as boolean;
   } catch {
     return false;
   }
@@ -398,7 +417,7 @@ export async function getEvidenceCount(): Promise<number> {
   if (!c) return 0;
 
   try {
-    const count = await c.evidenceCount();
+    const count = (await c.evidenceCount()) as bigint;
     return Number(count);
   } catch {
     return 0;

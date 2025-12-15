@@ -5,19 +5,20 @@
  * Users are identified by DIDs (did:key format).
  */
 
-import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { z } from 'zod';
-import { eq } from 'drizzle-orm';
-import { verifyMessage } from 'viem';
-
-import { db, users, type NewUser } from '../db/index.js';
-import { Errors } from '../middleware/error.js';
-import { requireAuth, getAuthUser } from '../middleware/auth.js';
 import { 
   createLinkingChallenge, 
   isValidSignatureTimestamp 
 } from '@witnesschain/shared';
+import { eq } from 'drizzle-orm';
+import { Hono } from 'hono';
+import { verifyMessage } from 'viem';
+import { z } from 'zod';
+
+import { db, users, type NewUser } from '../db/index.js';
+import { requireAuth, getAuthUser } from '../middleware/auth.js';
+import { Errors } from '../middleware/error.js';
+
 
 export const userRoutes = new Hono();
 

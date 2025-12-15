@@ -27,7 +27,7 @@ const PIECE_CID_PATTERN = /^baga[a-z2-7]{56,}$/;
  * Relaxed pattern for any CID-like string
  * Used for initial filtering before more specific validation
  */
-const CID_LOOSE_PATTERN = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{50,})$/;
+const _CID_LOOSE_PATTERN = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{50,})$/;
 
 /**
  * CID validation result

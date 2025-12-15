@@ -89,7 +89,7 @@ export const useAuthStore = create<AuthState>()(
     setWalletConnected: async (address: string, chainId: number) => {
       const normalizedAddress = address.toLowerCase();
       const currentState = get();
-      
+
       // Guard: Don't re-process if already loading or if same wallet already connected
       if (currentState.isLoading) {
         return;
@@ -218,7 +218,7 @@ export const useAuthStore = create<AuthState>()(
         
         // Get the newly created session
         const session = getSession();
-        
+
         set({
           status: 'authenticated',
           session,

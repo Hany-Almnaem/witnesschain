@@ -1,5 +1,5 @@
-import { drizzle } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
+import { drizzle } from 'drizzle-orm/libsql';
 
 import * as schema from './schema.js';
 
@@ -48,7 +48,7 @@ export async function isDatabaseConnected(): Promise<boolean> {
 /**
  * Close database connection
  */
-export async function closeDatabase(): Promise<void> {
+export function closeDatabase(): void {
   if (dbClient) {
     dbClient.close();
     dbClient = null;

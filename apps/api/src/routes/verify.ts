@@ -1,8 +1,6 @@
-import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
+import { Hono } from 'hono';
 import { z } from 'zod';
-
-import { Errors } from '../middleware/error.js';
 
 export const verifyRoutes = new Hono();
 
@@ -18,8 +16,8 @@ const verifySchema = z.object({
  * Verify evidence on-chain
  * POST /api/verify
  */
-verifyRoutes.post('/', zValidator('json', verifySchema), async (c) => {
-  const { evidenceId, contentHash } = c.req.valid('json');
+verifyRoutes.post('/', zValidator('json', verifySchema), (c) => {
+  const { evidenceId } = c.req.valid('json');
 
   // TODO: Implement on-chain verification in Phase 5
   
@@ -37,7 +35,7 @@ verifyRoutes.post('/', zValidator('json', verifySchema), async (c) => {
  * Get verification status
  * GET /api/verify/:evidenceId
  */
-verifyRoutes.get('/:evidenceId', async (c) => {
+verifyRoutes.get('/:evidenceId', (c) => {
   const evidenceId = c.req.param('evidenceId');
 
   // TODO: Implement verification status lookup in Phase 5-6
@@ -65,7 +63,7 @@ verifyRoutes.post(
       contentHash: z.string().regex(/^0x[a-f0-9]{64}$/, 'Invalid content hash'),
     })
   ),
-  async (c) => {
+  (c) => {
     const { contentHash } = c.req.valid('json');
 
     // TODO: Implement hash verification in Phase 5

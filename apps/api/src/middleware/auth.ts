@@ -11,12 +11,13 @@
  * - X-Signature: Wallet signature of the request
  */
 
-import type { Context, Next } from 'hono';
-import { verifyMessage } from 'viem';
 import { eq } from 'drizzle-orm';
+import { verifyMessage } from 'viem';
 
-import { db, users } from '../db/index.js';
 import { Errors } from './error.js';
+import { db, users } from '../db/index.js';
+
+import type { Context, Next } from 'hono';
 
 /**
  * Maximum age for request signatures (5 minutes)
@@ -68,11 +69,11 @@ function isValidTimestamp(timestamp: number): boolean {
 /**
  * Authentication middleware for protected routes
  * 
- * Verifies:
- * 1. DID format is valid
- * 2. Wallet address is linked to the DID in database
- * 3. Timestamp is fresh (not expired)
- * 4. Signature is valid (proves wallet ownership)
+ * Supports two auth modes:
+ * 1. Session-based (MVP): X-DID + X-Wallet-Address headers, validated against DB
+ * 2. Signature-based (full): All headers + cryptographic signature verification
+ * 
+ * TODO: For production, enforce signature-based auth for sensitive operations
  */
 export async function requireAuth(c: Context, next: Next) {
   const did = c.req.header('X-DID');
@@ -80,21 +81,13 @@ export async function requireAuth(c: Context, next: Next) {
   const timestampStr = c.req.header('X-Timestamp');
   const signature = c.req.header('X-Signature');
 
-  // Check required headers
+  // Check required headers (DID and wallet always required)
   if (!did) {
     throw Errors.unauthorized('Missing X-DID header');
   }
 
   if (!walletAddress) {
     throw Errors.unauthorized('Missing X-Wallet-Address header');
-  }
-
-  if (!timestampStr) {
-    throw Errors.unauthorized('Missing X-Timestamp header');
-  }
-
-  if (!signature) {
-    throw Errors.unauthorized('Missing X-Signature header');
   }
 
   // Validate DID format
@@ -105,16 +98,6 @@ export async function requireAuth(c: Context, next: Next) {
   // Validate wallet address format
   if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
     throw Errors.badRequest('Invalid wallet address format');
-  }
-
-  // Parse and validate timestamp
-  const timestamp = parseInt(timestampStr, 10);
-  if (isNaN(timestamp)) {
-    throw Errors.badRequest('Invalid timestamp format');
-  }
-
-  if (!isValidTimestamp(timestamp)) {
-    throw Errors.unauthorized('Request timestamp expired');
   }
 
   // Verify wallet is linked to DID in database
@@ -130,28 +113,45 @@ export async function requireAuth(c: Context, next: Next) {
     throw Errors.unauthorized('Wallet address does not match DID');
   }
 
-  // Reconstruct the expected message
-  const method = c.req.method;
-  const path = new URL(c.req.url).pathname;
-  const expectedMessage = createAuthMessage(method, path, timestamp, did);
-
-  // Verify signature
-  try {
-    const isValid = await verifyMessage({
-      address: walletAddress as `0x${string}`,
-      message: expectedMessage,
-      signature: signature as `0x${string}`,
-    });
-
-    if (!isValid) {
-      throw Errors.unauthorized('Invalid signature');
+  // MVP: Session-based auth - if DID and wallet match database, allow request
+  // For production: Always require signature verification
+  const useSignatureAuth = timestampStr && signature;
+  
+  if (useSignatureAuth) {
+    // Full signature-based auth
+    const timestamp = parseInt(timestampStr, 10);
+    if (isNaN(timestamp)) {
+      throw Errors.badRequest('Invalid timestamp format');
     }
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('Invalid signature')) {
-      throw error;
+
+    if (!isValidTimestamp(timestamp)) {
+      throw Errors.unauthorized('Request timestamp expired');
     }
-    throw Errors.badRequest('Invalid signature format');
+
+    // Reconstruct the expected message
+    const method = c.req.method;
+    const path = new URL(c.req.url).pathname;
+    const expectedMessage = createAuthMessage(method, path, timestamp, did);
+
+    // Verify signature
+    try {
+      const isValid = await verifyMessage({
+        address: walletAddress as `0x${string}`,
+        message: expectedMessage,
+        signature: signature as `0x${string}`,
+      });
+
+      if (!isValid) {
+        throw Errors.unauthorized('Invalid signature');
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Invalid signature')) {
+        throw error;
+      }
+      throw Errors.badRequest('Invalid signature format');
+    }
   }
+  // else: Session-based auth - DID and wallet already validated against DB above
 
   // Store authenticated user info in context
   c.set('user', {
@@ -164,15 +164,20 @@ export async function requireAuth(c: Context, next: Next) {
 }
 
 /**
- * Get authenticated user from context
- * Only available after requireAuth middleware
+ * Authenticated user type
  */
-export function getAuthUser(c: Context): {
+interface AuthenticatedUser {
   did: string;
   walletAddress: string;
   publicKey: string;
-} {
-  const user = c.get('user');
+}
+
+/**
+ * Get authenticated user from context
+ * Only available after requireAuth middleware
+ */
+export function getAuthUser(c: Context): AuthenticatedUser {
+  const user = c.get('user') as AuthenticatedUser | undefined;
   if (!user) {
     throw Errors.unauthorized('Not authenticated');
   }

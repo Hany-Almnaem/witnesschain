@@ -1,6 +1,7 @@
+import { StorageError } from '../lib/storage-errors.js';
+
 import type { Context } from 'hono';
 
-import { StorageError } from '../lib/storage-errors.js';
 
 // Use specific status codes that are valid for JSON responses
 type ErrorStatusCode = 400 | 401 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503;

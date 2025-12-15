@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 
 import { isDatabaseConnected } from '../db/index.js';
-import { isSynapseConnected, getStorageInfo } from '../lib/synapse.js';
 import { isFvmConnected, isContractAvailable, getFvmInfo } from '../lib/fvm.js';
+import { isSynapseConnected, getStorageInfo } from '../lib/synapse.js';
 
 export const healthRoutes = new Hono();
 

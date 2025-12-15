@@ -17,10 +17,10 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
+import { validateCid, isPieceCid } from './cid-validation.js';
+import { StorageError } from './storage-errors.js';
 import { uploadToFilecoin, retrieveFromFilecoin } from './storage.js';
 import { getSynapseClient, resetSynapseClient, isSynapseConnected } from './synapse.js';
-import { validateCid, isPieceCid } from './cid-validation.js';
-import { StorageError, StorageErrorCode } from './storage-errors.js';
 
 // Test data - small payload to minimize costs
 const TEST_DATA = new TextEncoder().encode(
@@ -42,7 +42,7 @@ function shouldRunIntegrationTests(): boolean {
 describe('Storage Integration Tests', () => {
   let isConfigured: boolean;
 
-  beforeAll(async () => {
+  beforeAll(() => {
     isConfigured = shouldRunIntegrationTests();
     if (!isConfigured) {
       console.warn(

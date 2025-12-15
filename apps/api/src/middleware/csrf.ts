@@ -10,8 +10,9 @@
  * but this adds defense-in-depth for edge cases.
  */
 
-import type { Context, Next } from 'hono';
 import { Errors } from './error.js';
+
+import type { Context, Next } from 'hono';
 
 /**
  * Get allowed origins from environment or defaults
