@@ -4,14 +4,16 @@
   "private": true,
   "scripts": {
     "compile": "hardhat compile",
-    "build": "hardhat compile",
+    "build": "hardhat compile && pnpm export:abi",
     "test": "hardhat test",
     "test:coverage": "hardhat coverage",
-    "deploy:calibration": "hardhat run scripts/deploy.ts --network calibration",
+    "test:gas": "REPORT_GAS=true hardhat test",
+    "deploy:calibration": "hardhat run scripts/deploy-calibration.ts --network calibration",
     "deploy:mainnet": "hardhat run scripts/deploy.ts --network mainnet",
     "verify": "hardhat verify",
     "clean": "hardhat clean",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "export:abi": "node -e \"const fs = require('fs'); const artifact = require('./artifacts/contracts/EvidenceRegistry.sol/EvidenceRegistry.json'); fs.writeFileSync('./abi/EvidenceRegistry.json', JSON.stringify(artifact.abi, null, 2));\""
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",

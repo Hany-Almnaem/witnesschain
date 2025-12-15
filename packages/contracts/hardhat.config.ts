@@ -5,8 +5,14 @@ import * as dotenv from 'dotenv';
 
 dotenv.config({ path: '../../.env' });
 
-const CALIBRATION_RPC_URL = process.env.FILECOIN_RPC_URL ?? 'https://api.calibration.node.glif.io/rpc/v1';
-const MAINNET_RPC_URL = process.env.FILECOIN_MAINNET_RPC_URL ?? 'https://api.node.glif.io/rpc/v1';
+// Use dedicated calibration RPC env var, fall back to generic, then default
+const CALIBRATION_RPC_URL = 
+  process.env.FILECOIN_CALIBRATION_RPC_URL ?? 
+  'https://api.calibration.node.glif.io/rpc/v1';
+const MAINNET_RPC_URL = 
+  process.env.FILECOIN_MAINNET_RPC_URL ?? 
+  process.env.FILECOIN_RPC_URL ?? 
+  'https://api.node.glif.io/rpc/v1';
 const PRIVATE_KEY = process.env.BACKEND_PRIVATE_KEY ?? '';
 
 const config: HardhatUserConfig = {

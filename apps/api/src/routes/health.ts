@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 
 import { isDatabaseConnected } from '../db/index.js';
 import { isSynapseConnected, getStorageInfo } from '../lib/synapse.js';
+import { isFvmConnected, isContractAvailable, getFvmInfo } from '../lib/fvm.js';
 
 export const healthRoutes = new Hono();
 
@@ -11,15 +12,16 @@ export const healthRoutes = new Hono();
  */
 healthRoutes.get('/', async (c) => {
   // Check actual service connectivity
-  const [dbConnected, synapseConnected] = await Promise.all([
+  const [dbConnected, synapseConnected, fvmConnected] = await Promise.all([
     isDatabaseConnected(),
     isSynapseConnected(),
+    isContractAvailable(),
   ]);
 
   const services = {
     database: dbConnected ? 'connected' : 'disconnected',
     synapse: synapseConnected ? 'connected' : 'disconnected',
-    fvm: 'disconnected' as const, // Will be updated in Phase 5
+    fvm: fvmConnected ? 'connected' : 'disconnected',
   } as const;
 
   // Determine overall health status
@@ -82,5 +84,28 @@ healthRoutes.get('/storage', async (c) => {
     walletAddress: info?.walletAddress ?? null,
     balance: info?.balance ?? null,
     configured: info?.walletAddress !== null,
+  });
+});
+
+/**
+ * FVM (Filecoin Virtual Machine) status
+ * Returns detailed information about the EvidenceRegistry contract
+ */
+healthRoutes.get('/fvm', async (c) => {
+  const [connected, contractAvailable, info] = await Promise.all([
+    isFvmConnected(),
+    isContractAvailable(),
+    getFvmInfo(),
+  ]);
+
+  return c.json({
+    status: contractAvailable ? 'connected' : connected ? 'network_only' : 'disconnected',
+    network: info.network,
+    chainId: info.chainId,
+    contractAddress: info.contractAddress,
+    walletAddress: info.walletAddress,
+    balance: info.balance,
+    contractConfigured: info.contractAddress !== null,
+    walletConfigured: info.walletAddress !== null,
   });
 });

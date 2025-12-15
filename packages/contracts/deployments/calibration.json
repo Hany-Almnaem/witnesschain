@@ -1,0 +1,12 @@
+{
+  "network": "calibration",
+  "chainId": 314159,
+  "contractName": "EvidenceRegistry",
+  "contractAddress": "0xF55174886848424b196Af47e6f0C92fABC7A500B",
+  "deployerAddress": "0x67C5967429280Ae900C3D16DEAEFB68e21A49FE7",
+  "transactionHash": "0xcb303fb2b2c318df8a59992cd74a182457bb4d1d70cae8220a3f65c30ee41b70",
+  "blockNumber": 3282745,
+  "timestamp": "2025-12-15T14:26:01.955Z",
+  "version": "1.0.0",
+  "verified": false
+}

@@ -10,6 +10,7 @@ import { db, evidence, accessLogs } from '../db/index.js';
 import { uploadToFilecoin, retrieveFromFilecoin } from '../lib/storage.js';
 import { validateCid, sanitizeCidForLog } from '../lib/cid-validation.js';
 import { StorageError } from '../lib/storage-errors.js';
+import { registerEvidenceOnChain, isContractAvailable } from '../lib/fvm.js';
 
 import {
   uploadRequestSchema,
@@ -154,6 +155,51 @@ evidenceRoutes.post(
       console.info(`[Evidence] Successfully stored: ${evidenceId}`);
       console.info(`[Evidence] PieceCID: ${sanitizeCidForLog(uploadResult.pieceCid)}`);
 
+      // Attempt on-chain registration if contract is available
+      let txHash: string | null = null;
+      let blockNumber: number | null = null;
+      let onChainTimestamp: number | null = null;
+      let finalStatus = 'stored';
+
+      const contractAvailable = await isContractAvailable();
+      if (contractAvailable) {
+        console.info(`[Evidence] Registering on-chain: ${evidenceId}`);
+
+        const registrationResult = await registerEvidenceOnChain(
+          evidenceId,
+          body.encryption.contentHash,
+          uploadResult.pieceCid,
+          uploadResult.providerAddress ?? 'f0unknown'
+        );
+
+        if (registrationResult.success) {
+          txHash = registrationResult.txHash ?? null;
+          blockNumber = registrationResult.blockNumber ?? null;
+          onChainTimestamp = registrationResult.timestamp ?? null;
+          finalStatus = 'timestamped';
+
+          console.info(`[Evidence] On-chain registration successful: ${txHash}`);
+
+          // Update with on-chain info
+          await db
+            .update(evidence)
+            .set({
+              txHash,
+              blockNumber,
+              onChainTimestamp,
+              status: finalStatus,
+              updatedAt: new Date(),
+            })
+            .where(eq(evidence.id, evidenceId));
+        } else {
+          console.warn(`[Evidence] On-chain registration failed: ${registrationResult.error}`);
+          // Evidence is still stored, just not timestamped
+          // Status remains 'stored' - can be retried later
+        }
+      } else {
+        console.info('[Evidence] On-chain registration skipped - contract not available');
+      }
+
       return c.json(
         {
           success: true,
@@ -163,7 +209,10 @@ evidenceRoutes.post(
             pieceCid: uploadResult.pieceCid,
             contentHash: body.encryption.contentHash,
             filPaid: uploadResult.filPaid,
-            status: 'stored',
+            status: finalStatus,
+            txHash,
+            blockNumber,
+            onChainTimestamp,
           },
         },
         201
