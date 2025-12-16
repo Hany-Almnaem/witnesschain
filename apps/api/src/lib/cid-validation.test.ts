@@ -32,6 +32,32 @@ describe('CID Validation', () => {
       expect(result.error).toBeUndefined();
     });
 
+    /**
+     * Synapse SDK returns PieceCIDs in bafkzcib format (Filecoin piece commitment v2)
+     * These are valid CIDv1 identifiers and must be accepted by our validation.
+     * Example from SDK tests: bafkzcibcd4bdomn3tgwgrh3g532zopskstnbrd2n3sxfqbze7rxt7vqn7veigmy
+     */
+    it('should validate Synapse SDK PieceCID format (bafkzcib...)', () => {
+      // Real example from @filoz/synapse-sdk test suite
+      const cid = 'bafkzcibcd4bdomn3tgwgrh3g532zopskstnbrd2n3sxfqbze7rxt7vqn7veigmy';
+      const result = validateCid(cid);
+
+      expect(result.isValid).toBe(true);
+      // SDK format is recognized as CIDv1 (starts with 'b', valid base32)
+      expect(result.format).toBe('v1');
+      expect(result.error).toBeUndefined();
+    });
+
+    it('should validate another Synapse SDK PieceCID format variant', () => {
+      // Another example from SDK tests with slightly different length
+      const cid = 'bafkzcibdy4hapci46px57mg3znrwydsv7x7rxisg7l7ti245wxwwfmiftgmdmbqk';
+      const result = validateCid(cid);
+
+      expect(result.isValid).toBe(true);
+      expect(result.format).toBe('v1');
+      expect(result.error).toBeUndefined();
+    });
+
     it('should validate PieceCID (baga...)', () => {
       const cid = 'baga6ea4seaqjtovkwk4myyzj56eztkh5pzsk5upksan6f5outesy62bsvl4dsha';
       const result = validateCid(cid);

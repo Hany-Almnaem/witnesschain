@@ -10,6 +10,7 @@ import {
   createEmptyFileError,
   createFileTooLargeError,
   createInvalidCidError,
+  createMissingCidError,
   isStorageError,
 } from './storage-errors.js';
 
@@ -105,11 +106,35 @@ describe('translateStorageError', () => {
     expect(result.code).toBe(StorageErrorCode.DEAL_FAILED);
   });
 
-  it('should translate CID errors', () => {
-    const error = new Error('invalid cid');
+  it('should translate CID errors with "invalid cid"', () => {
+    const error = new Error('invalid cid format');
     const result = translateStorageError(error);
 
     expect(result.code).toBe(StorageErrorCode.INVALID_CID);
+  });
+
+  it('should translate CID errors with "pieceCid"', () => {
+    const error = new Error('Missing pieceCid in response');
+    const result = translateStorageError(error);
+
+    expect(result.code).toBe(StorageErrorCode.INVALID_CID);
+  });
+
+  it('should NOT misclassify generic "invalid" errors as CID errors', () => {
+    // Errors that just contain "invalid" without CID context
+    // should NOT be classified as INVALID_CID
+    const error = new Error('Invalid upload session');
+    const result = translateStorageError(error);
+
+    // Should be UPLOAD_FAILED (contains "upload" and "fail"-ish context) or UNKNOWN
+    expect(result.code).not.toBe(StorageErrorCode.INVALID_CID);
+  });
+
+  it('should translate upload failed errors', () => {
+    const error = new Error('Failed to upload piece');
+    const result = translateStorageError(error);
+
+    expect(result.code).toBe(StorageErrorCode.UPLOAD_FAILED);
   });
 
   it('should handle unknown errors', () => {
@@ -159,6 +184,25 @@ describe('Error factory functions', () => {
 
       expect(error.code).toBe(StorageErrorCode.INVALID_CID);
       expect(error.details?.cidPrefix).toHaveLength(20);
+    });
+  });
+
+  describe('createMissingCidError', () => {
+    it('should create error with truncated evidence ID', () => {
+      const evidenceId = 'abc12345-6789-0123-4567-890123456789';
+      const error = createMissingCidError(evidenceId);
+
+      expect(error.code).toBe(StorageErrorCode.MISSING_CID);
+      expect(error.userMessage).toContain('did not return an identifier');
+      expect(error.details?.evidenceIdPrefix).toBe('abc12345');
+    });
+
+    it('should handle short evidence IDs gracefully', () => {
+      const error = createMissingCidError('short');
+
+      expect(error.code).toBe(StorageErrorCode.MISSING_CID);
+      // substring(0, 8) on "short" returns "short" (JS is lenient)
+      expect(error.details?.evidenceIdPrefix).toBe('short');
     });
   });
 });

@@ -22,9 +22,14 @@ import { StorageError } from './storage-errors.js';
 import { uploadToFilecoin, retrieveFromFilecoin } from './storage.js';
 import { getSynapseClient, resetSynapseClient, isSynapseConnected } from './synapse.js';
 
-// Test data - small payload to minimize costs
+// Test data - minimum 127 bytes required by Synapse SDK
+// Using a larger payload to meet the minimum size requirement
 const TEST_DATA = new TextEncoder().encode(
-  'WitnessChain Integration Test - ' + new Date().toISOString()
+  JSON.stringify({
+    test: 'WitnessChain Integration Test',
+    timestamp: new Date().toISOString(),
+    padding: 'x'.repeat(100), // Ensures we exceed 127 byte minimum
+  })
 );
 
 // SHA-256 hash of test data (computed at runtime)
@@ -199,12 +204,13 @@ describe('Storage Integration Tests', () => {
         return;
       }
 
-      // Create unique test payload
+      // Create unique test payload (minimum 127 bytes required by Synapse SDK)
       const testPayload = new TextEncoder().encode(
         JSON.stringify({
           test: 'e2e-' + Date.now(),
           timestamp: new Date().toISOString(),
           random: Math.random().toString(36),
+          padding: 'x'.repeat(100), // Ensures we exceed 127 byte minimum
         })
       );
 
@@ -277,8 +283,13 @@ describe('Anti-Bypass Checks', () => {
     }
 
     // Upload with unique timestamp to prevent any caching
+    // Minimum 127 bytes required by Synapse SDK
     const uniqueData = new TextEncoder().encode(
-      'anti-bypass-' + Date.now() + '-' + Math.random()
+      JSON.stringify({
+        test: 'anti-bypass-' + Date.now(),
+        random: Math.random(),
+        padding: 'x'.repeat(100), // Ensures we exceed 127 byte minimum
+      })
     );
 
     const contentHash = await (async () => {

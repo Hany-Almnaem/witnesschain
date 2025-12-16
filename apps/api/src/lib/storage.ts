@@ -22,6 +22,7 @@ import {
   translateStorageError,
   createEmptyFileError,
   createInvalidCidError,
+  createMissingCidError,
 } from './storage-errors.js';
 import { getSynapseClient } from './synapse.js';
 
@@ -165,8 +166,23 @@ export async function uploadToFilecoin(
       },
     });
 
+    // Debug logging: capture SDK result structure (sanitized)
+    console.info(`[Storage] SDK result received for evidence: ${evidenceId}`);
+    console.info(`[Storage] result.pieceCid exists: ${result.pieceCid != null}`);
+    console.info(`[Storage] result.pieceCid type: ${typeof result.pieceCid}`);
+
+    // Guard: Check if pieceCid exists before calling toString()
+    if (result.pieceCid == null) {
+      console.error(`[Storage] SDK returned null/undefined pieceCid for evidence: ${evidenceId}`);
+      throw createMissingCidError(evidenceId);
+    }
+
     // Convert PieceCID to string for validation and storage
     const pieceCidString = result.pieceCid.toString();
+
+    // Debug logging: log sanitized CID prefix and length
+    console.info(`[Storage] pieceCid string length: ${pieceCidString.length}`);
+    console.info(`[Storage] pieceCid prefix: ${pieceCidString.substring(0, 12)}...`);
 
     // Validate the returned CID
     const cidValidation = validateCid(pieceCidString);
@@ -174,11 +190,13 @@ export async function uploadToFilecoin(
       console.error(
         `[Storage] Invalid CID returned from SDK: ${sanitizeCidForLog(pieceCidString)}`
       );
+      console.error(`[Storage] Validation error: ${cidValidation.error}`);
+      console.error(`[Storage] Detected format: ${cidValidation.format}`);
       throw new StorageError(
         StorageErrorCode.INVALID_CID,
         'Storage returned invalid identifier. Please try again.',
         `SDK returned invalid CID: ${cidValidation.error}`,
-        { cid: sanitizeCidForLog(pieceCidString) }
+        { cid: sanitizeCidForLog(pieceCidString), format: cidValidation.format }
       );
     }
 

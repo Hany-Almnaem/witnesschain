@@ -273,10 +273,14 @@ export function UploadForm({
 
         await onSubmit(payload);
       } catch (error) {
+        // Only set encryptionError for actual encryption failures
+        // API/storage errors are handled by the parent via uploadProgress
         if (error instanceof EncryptionError) {
           setEncryptionError(error.message);
         } else {
-          setEncryptionError('Failed to encrypt file. Please try again.');
+          // Re-throw non-encryption errors so parent can handle them
+          // via uploadProgress.state = 'error'
+          throw error;
         }
       }
     },

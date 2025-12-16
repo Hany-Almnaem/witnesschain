@@ -33,6 +33,7 @@ export enum StorageErrorCode {
 
   // Validation errors
   INVALID_CID = 'STORAGE_INVALID_CID',
+  MISSING_CID = 'STORAGE_MISSING_CID',
   INVALID_DATA = 'STORAGE_INVALID_DATA',
 
   // Network errors
@@ -71,6 +72,8 @@ const USER_MESSAGES: Record<StorageErrorCode, string> = {
     'Storage deal timed out. Please try again.',
   [StorageErrorCode.INVALID_CID]:
     'Invalid storage identifier.',
+  [StorageErrorCode.MISSING_CID]:
+    'Storage provider did not return an identifier. Please try again.',
   [StorageErrorCode.INVALID_DATA]:
     'Invalid data format.',
   [StorageErrorCode.NETWORK_ERROR]:
@@ -202,11 +205,27 @@ export function translateStorageError(error: unknown): StorageError {
       );
     }
 
-    // CID validation errors
-    if (message.includes('cid') || message.includes('invalid')) {
+    // CID validation errors - be specific to avoid false positives
+    // Only match when "cid" is mentioned, or specific invalid CID patterns
+    // Note: message is already lowercased above
+    if (
+      message.includes('piececid') || // pieceCid lowercased
+      message.includes('piece cid') ||
+      message.includes('invalid cid') ||
+      (message.includes('cid') && message.includes('invalid'))
+    ) {
       return new StorageError(
         StorageErrorCode.INVALID_CID,
         USER_MESSAGES[StorageErrorCode.INVALID_CID],
+        error.message
+      );
+    }
+
+    // Upload failed (catch-all for upload-specific errors before falling through)
+    if (message.includes('upload') && message.includes('fail')) {
+      return new StorageError(
+        StorageErrorCode.UPLOAD_FAILED,
+        USER_MESSAGES[StorageErrorCode.UPLOAD_FAILED],
         error.message
       );
     }
@@ -258,6 +277,18 @@ export function createInvalidCidError(cid: string): StorageError {
     USER_MESSAGES[StorageErrorCode.INVALID_CID],
     `Invalid CID format: ${cid.substring(0, 20)}...`,
     { cidPrefix: cid.substring(0, 20) }
+  );
+}
+
+/**
+ * Create error for missing CID (SDK returned null/undefined)
+ */
+export function createMissingCidError(evidenceId: string): StorageError {
+  return new StorageError(
+    StorageErrorCode.MISSING_CID,
+    USER_MESSAGES[StorageErrorCode.MISSING_CID],
+    `SDK returned null/undefined pieceCid for evidence: ${evidenceId.substring(0, 8)}...`,
+    { evidenceIdPrefix: evidenceId.substring(0, 8) }
   );
 }
 
