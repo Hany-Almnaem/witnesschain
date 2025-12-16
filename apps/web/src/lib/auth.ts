@@ -16,7 +16,7 @@
 import type { Session } from '@witnesschain/shared';
 import { generateNonce } from '@witnesschain/shared';
 
-import { generateDIDKeyPair, restoreDIDFromSecretKey, createLinkingChallenge } from './did';
+import { generateDIDKeyPair, restoreDIDFromSecretKey, createLinkingChallenge, getEncryptionPublicKey } from './did';
 import { 
   storeSecretKey, 
   retrieveSecretKey, 
@@ -180,7 +180,10 @@ export async function isAuthenticated(): Promise<boolean> {
  */
 export interface AuthResult {
   did: string;
+  /** Ed25519 public key for DID/signing (base64) */
   publicKey: string;
+  /** X25519 public key for encryption (base64) */
+  encryptionPublicKey: string;
   isNewUser: boolean;
 }
 
@@ -220,17 +223,21 @@ export async function authenticateUser(
     }
     
     try {
-    // Restore DID info from secret key
-    const { publicKey } = await restoreDIDFromSecretKey(secretKey);
+      // Restore DID info from secret key
+      const { publicKey } = await restoreDIDFromSecretKey(secretKey);
+      
+      // Derive X25519 encryption public key from the Ed25519 secret key
+      const encryptionPublicKey = getEncryptionPublicKey(secretKey);
     
       // Create session with expiration
       setSession(createSession(existingDid, normalizedAddress));
     
-    return {
-      did: existingDid,
-      publicKey,
-      isNewUser: false,
-    };
+      return {
+        did: existingDid,
+        publicKey,
+        encryptionPublicKey,
+        isNewUser: false,
+      };
     } finally {
       // Clear secret key from memory immediately after use
       secretKey.fill(0);
@@ -241,50 +248,54 @@ export async function authenticateUser(
   const { did, publicKey, secretKey } = await generateDIDKeyPair();
   
   try {
-  // Store encrypted secret key
-  await storeSecretKey(secretKey, password, did);
-  
-  // Store wallet-DID mapping
-  setDIDForWallet(normalizedAddress, did);
-  
-  // Request wallet signature to link wallet to DID
-  if (signMessage) {
-    const timestamp = Math.floor(Date.now() / 1000);
-    const nonce = generateNonce(); // Prevent replay attacks
-    const challenge = createLinkingChallenge(normalizedAddress, did, timestamp, nonce);
+    // Derive X25519 encryption public key from the Ed25519 secret key
+    const encryptionPublicKey = getEncryptionPublicKey(secretKey);
     
-    try {
-      const signature = await signMessage(challenge);
+    // Store encrypted secret key
+    await storeSecretKey(secretKey, password, did);
+  
+    // Store wallet-DID mapping
+    setDIDForWallet(normalizedAddress, did);
+  
+    // Request wallet signature to link wallet to DID
+    if (signMessage) {
+      const timestamp = Math.floor(Date.now() / 1000);
+      const nonce = generateNonce(); // Prevent replay attacks
+      const challenge = createLinkingChallenge(normalizedAddress, did, timestamp, nonce);
+    
+      try {
+        const signature = await signMessage(challenge);
       
-      // Register with backend (include nonce for replay protection)
-      await registerUserOnBackend({
-        did,
-        nonce,
-        publicKey,
-        walletAddress: normalizedAddress,
-        signature,
-        timestamp,
-      });
-    } catch (error) {
-      // If registration fails, clean up local state
-      await deleteSecretKey(did);
-      clearDIDForWallet(normalizedAddress);
+        // Register with backend (include nonce for replay protection)
+        await registerUserOnBackend({
+          did,
+          nonce,
+          publicKey,
+          walletAddress: normalizedAddress,
+          signature,
+          timestamp,
+        });
+      } catch (error) {
+        // If registration fails, clean up local state
+        await deleteSecretKey(did);
+        clearDIDForWallet(normalizedAddress);
       
-      if (error instanceof Error && error.message.includes('rejected')) {
-        throw new AuthError('AUTH_SIGNATURE_REJECTED', 'Signature request was rejected');
+        if (error instanceof Error && error.message.includes('rejected')) {
+          throw new AuthError('AUTH_SIGNATURE_REJECTED', 'Signature request was rejected');
+        }
+        throw error;
       }
-      throw error;
     }
-  }
   
     // Create session with expiration
     setSession(createSession(did, normalizedAddress));
   
-  return {
-    did,
-    publicKey,
-    isNewUser: true,
-  };
+    return {
+      did,
+      publicKey,
+      encryptionPublicKey,
+      isNewUser: true,
+    };
   } finally {
     // Clear secret key from memory immediately after use
     secretKey.fill(0);

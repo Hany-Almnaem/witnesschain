@@ -53,6 +53,7 @@ import {
   DecryptionError,
 } from '@/lib/crypto';
 import { retrieveSecretKey } from '@/lib/key-storage';
+import { getEncryptionSecretKey } from '@/lib/did';
 
 /**
  * Evidence status type
@@ -301,23 +302,37 @@ export default function EvidenceDetailPage() {
       setDownloadError(null);
 
       try {
-        // Retrieve secret key using password
-        const secretKey = await retrieveSecretKey(did, password);
+        // Retrieve Ed25519 secret key using password
+        const ed25519SecretKey = await retrieveSecretKey(did, password);
 
-        if (!secretKey) {
+        if (!ed25519SecretKey) {
           throw new Error('Invalid password');
+        }
+
+        // Derive X25519 encryption secret key (32 bytes) from Ed25519 secret key (64 bytes)
+        // This is required because:
+        // - Ed25519 is used for signing (DID)
+        // - X25519 is used for encryption (nacl.box)
+        let x25519SecretKey: Uint8Array;
+        try {
+          x25519SecretKey = getEncryptionSecretKey(ed25519SecretKey);
+        } finally {
+          // Clear Ed25519 key from memory immediately after deriving X25519 key
+          ed25519SecretKey.fill(0);
         }
 
         // Fetch encrypted data from API
         const response = await authFetch(`/api/evidence/${evidenceId}/download`);
 
         if (!response.ok) {
+          x25519SecretKey.fill(0);
           throw new Error(`Download failed: ${response.status}`);
         }
 
         const result = await response.json();
 
         if (!result.success) {
+          x25519SecretKey.fill(0);
           throw new Error(result.message || 'Download failed');
         }
 
@@ -328,15 +343,18 @@ export default function EvidenceDetailPage() {
             .map((c) => c.charCodeAt(0))
         );
 
-        // Decrypt file
+        // Decrypt file using X25519 secret key (32 bytes)
         const decryptedData = decryptFile({
           encryptedData,
           encryptedKey: result.data.encryption.encryptedKey,
           ephemeralPublicKey: result.data.encryption.ephemeralPublicKey,
           fileNonce: result.data.encryption.fileNonce,
           keyNonce: result.data.encryption.keyNonce,
-          recipientSecretKey: secretKey,
+          recipientSecretKey: x25519SecretKey,
         });
+
+        // Clear X25519 key from memory after use
+        x25519SecretKey.fill(0);
 
         // Verify content hash
         const isValid = await verifyContentHash(
@@ -352,9 +370,6 @@ export default function EvidenceDetailPage() {
         const blob = createDownloadBlob(decryptedData, evidence.mimeType);
         const fileName = `${evidence.title}.${getFileExtension(evidence.mimeType)}`;
         downloadFile(blob, fileName);
-
-        // Clear secret key from memory
-        secretKey.fill(0);
 
         setShowPasswordDialog(false);
       } catch (err) {

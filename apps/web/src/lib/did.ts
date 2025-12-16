@@ -282,3 +282,58 @@ export function generateEncryptionKeyPair(): {
     secretKey: encodeBase64(keyPair.secretKey),
   };
 }
+
+/**
+ * Derive X25519 encryption keypair from Ed25519 secret key
+ * 
+ * This allows us to use the same stored key for both:
+ * - Ed25519: DID signing operations
+ * - X25519: File encryption/decryption
+ * 
+ * The derivation uses the Ed25519 seed (first 32 bytes) to generate
+ * a deterministic X25519 keypair via nacl.box.keyPair.fromSecretKey().
+ * 
+ * @param ed25519SecretKey - The 64-byte Ed25519 secret key from nacl.sign.keyPair()
+ * @returns X25519 keypair with 32-byte secretKey and publicKey
+ */
+export function deriveEncryptionKeyPair(ed25519SecretKey: Uint8Array): {
+  publicKey: Uint8Array;
+  secretKey: Uint8Array;
+} {
+  if (ed25519SecretKey.length !== 64) {
+    throw new Error(
+      `Invalid Ed25519 secret key length: expected 64, got ${ed25519SecretKey.length}`
+    );
+  }
+  
+  // Extract the 32-byte seed from the Ed25519 secret key
+  // Ed25519 secretKey layout in tweetnacl: [32-byte seed][32-byte public key]
+  const seed = ed25519SecretKey.slice(0, 32);
+  
+  // Derive X25519 keypair from the seed
+  // nacl.box.keyPair.fromSecretKey expects a 32-byte scalar
+  const x25519KeyPair = nacl.box.keyPair.fromSecretKey(seed);
+  
+  return {
+    publicKey: x25519KeyPair.publicKey,
+    secretKey: x25519KeyPair.secretKey,
+  };
+}
+
+/**
+ * Get X25519 encryption public key as base64 string
+ * Convenience wrapper for use in encryption APIs
+ */
+export function getEncryptionPublicKey(ed25519SecretKey: Uint8Array): string {
+  const { publicKey } = deriveEncryptionKeyPair(ed25519SecretKey);
+  return encodeBase64(publicKey);
+}
+
+/**
+ * Get X25519 encryption secret key (32 bytes)
+ * For use in decryption operations
+ */
+export function getEncryptionSecretKey(ed25519SecretKey: Uint8Array): Uint8Array {
+  const { secretKey } = deriveEncryptionKeyPair(ed25519SecretKey);
+  return secretKey;
+}

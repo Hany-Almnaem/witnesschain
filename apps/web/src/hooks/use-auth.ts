@@ -46,7 +46,10 @@ export interface UseAuthReturn {
   walletAddress: string | null;
   chainId: number | null;
   did: string | null;
+  /** Ed25519 public key for DID/signing (base64) */
   publicKey: string | null;
+  /** X25519 public key for encryption (base64) - USE THIS FOR ENCRYPTION */
+  encryptionPublicKey: string | null;
   isNewUser: boolean;
   
   // Wallet actions
@@ -95,6 +98,7 @@ export function useAuth(): UseAuthReturn {
   const session = useAuthStore((state) => state.session);
   const did = useAuthStore((state) => state.did);
   const publicKey = useAuthStore((state) => state.publicKey);
+  const encryptionPublicKey = useAuthStore((state) => state.encryptionPublicKey);
   const isNewUser = useAuthStore((state) => state.isNewUser);
   const isLoading = useAuthStore((state) => state.isLoading);
   const error = useAuthStore((state) => state.error);
@@ -205,6 +209,7 @@ export function useAuth(): UseAuthReturn {
     chainId: storeChainId,
     did,
     publicKey,
+    encryptionPublicKey,
     isNewUser,
     
     // Wallet actions

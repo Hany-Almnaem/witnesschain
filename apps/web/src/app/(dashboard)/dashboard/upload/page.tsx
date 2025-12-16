@@ -24,7 +24,7 @@ import { authFetch } from '@/lib/api';
  */
 export default function UploadPage() {
   const router = useRouter();
-  const { publicKey, did } = useAuth();
+  const { encryptionPublicKey, did } = useAuth();
   
   const [uploadProgress, setUploadProgress] = useState<UploadProgress>({
     state: 'idle',
@@ -154,7 +154,7 @@ export default function UploadPage() {
   }, []);
 
   // Show encryption key not available error
-  if (!publicKey) {
+  if (!encryptionPublicKey) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -287,7 +287,7 @@ export default function UploadPage() {
 
       <UploadForm
         onSubmit={handleSubmit}
-        encryptionPublicKey={publicKey}
+        encryptionPublicKey={encryptionPublicKey}
         uploadProgress={uploadProgress}
       />
     </div>

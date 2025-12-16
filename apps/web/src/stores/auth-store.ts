@@ -48,7 +48,10 @@ export interface AuthState {
   // Authentication state
   session: Session | null;
   did: string | null;
+  /** Ed25519 public key for DID/signing (base64) */
   publicKey: string | null;
+  /** X25519 public key for encryption (base64) */
+  encryptionPublicKey: string | null;
   isNewUser: boolean;
   
   // UI state
@@ -77,6 +80,7 @@ export const useAuthStore = create<AuthState>()(
     session: null,
     did: null,
     publicKey: null,
+    encryptionPublicKey: null,
     isNewUser: false,
     isLoading: false,
     error: null,
@@ -195,6 +199,7 @@ export const useAuthStore = create<AuthState>()(
         session: null,
         did: null,
         publicKey: null,
+        encryptionPublicKey: null,
         isNewUser: false,
         error: null,
       });
@@ -224,6 +229,7 @@ export const useAuthStore = create<AuthState>()(
           session,
           did: result.did,
           publicKey: result.publicKey,
+          encryptionPublicKey: result.encryptionPublicKey,
           isNewUser: result.isNewUser,
           isLoading: false,
         });
@@ -270,6 +276,7 @@ export const useAuthStore = create<AuthState>()(
         status: walletAddress ? 'needs_password' : 'disconnected',
         session: null,
         publicKey: null,
+        encryptionPublicKey: null,
         error: null,
       });
     },
@@ -297,6 +304,7 @@ export const useAuthStore = create<AuthState>()(
           session: null,
           did: null,
           publicKey: null,
+          encryptionPublicKey: null,
           isNewUser: false,
           isLoading: false,
           error: null,

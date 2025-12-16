@@ -16,6 +16,9 @@ import {
   isValidDID,
   didToIdentifier,
   generateEncryptionKeyPair,
+  deriveEncryptionKeyPair,
+  getEncryptionPublicKey,
+  getEncryptionSecretKey,
 } from '../lib/did';
 import { createLinkingChallenge } from '@witnesschain/shared';
 
@@ -267,6 +270,125 @@ describe('Encryption Key Generation', () => {
 
     expect(keyPair1.publicKey).not.toBe(keyPair2.publicKey);
     expect(keyPair1.secretKey).not.toBe(keyPair2.secretKey);
+  });
+});
+
+describe('X25519 Key Derivation from Ed25519', () => {
+  it('should derive X25519 keypair from Ed25519 secret key', async () => {
+    const didKeyPair = await generateDIDKeyPair();
+    
+    // Derive X25519 keypair from the Ed25519 secret key
+    const x25519KeyPair = deriveEncryptionKeyPair(didKeyPair.secretKey);
+    
+    // X25519 keys should be exactly 32 bytes
+    expect(x25519KeyPair.publicKey).toBeInstanceOf(Uint8Array);
+    expect(x25519KeyPair.publicKey.length).toBe(32);
+    expect(x25519KeyPair.secretKey).toBeInstanceOf(Uint8Array);
+    expect(x25519KeyPair.secretKey.length).toBe(32);
+  });
+
+  it('should produce deterministic X25519 keys from same Ed25519 key', async () => {
+    const didKeyPair = await generateDIDKeyPair();
+    
+    // Derive twice from the same Ed25519 key
+    const x25519KeyPair1 = deriveEncryptionKeyPair(didKeyPair.secretKey);
+    const x25519KeyPair2 = deriveEncryptionKeyPair(didKeyPair.secretKey);
+    
+    // Should be identical
+    expect(x25519KeyPair1.publicKey).toEqual(x25519KeyPair2.publicKey);
+    expect(x25519KeyPair1.secretKey).toEqual(x25519KeyPair2.secretKey);
+  });
+
+  it('should produce different X25519 keys from different Ed25519 keys', async () => {
+    const didKeyPair1 = await generateDIDKeyPair();
+    const didKeyPair2 = await generateDIDKeyPair();
+    
+    const x25519KeyPair1 = deriveEncryptionKeyPair(didKeyPair1.secretKey);
+    const x25519KeyPair2 = deriveEncryptionKeyPair(didKeyPair2.secretKey);
+    
+    // Should be different
+    expect(x25519KeyPair1.publicKey).not.toEqual(x25519KeyPair2.publicKey);
+    expect(x25519KeyPair1.secretKey).not.toEqual(x25519KeyPair2.secretKey);
+  });
+
+  it('should reject Ed25519 key with invalid length', () => {
+    // Too short
+    expect(() => deriveEncryptionKeyPair(new Uint8Array(32))).toThrow(
+      'Invalid Ed25519 secret key length: expected 64, got 32'
+    );
+    
+    // Too long
+    expect(() => deriveEncryptionKeyPair(new Uint8Array(128))).toThrow(
+      'Invalid Ed25519 secret key length: expected 64, got 128'
+    );
+    
+    // Empty
+    expect(() => deriveEncryptionKeyPair(new Uint8Array(0))).toThrow(
+      'Invalid Ed25519 secret key length: expected 64, got 0'
+    );
+  });
+
+  it('should return base64 public key via getEncryptionPublicKey', async () => {
+    const didKeyPair = await generateDIDKeyPair();
+    
+    const publicKeyBase64 = getEncryptionPublicKey(didKeyPair.secretKey);
+    
+    expect(typeof publicKeyBase64).toBe('string');
+    // Base64 of 32 bytes should be approximately 44 characters
+    expect(publicKeyBase64.length).toBeGreaterThan(30);
+    expect(publicKeyBase64.length).toBeLessThan(50);
+  });
+
+  it('should return 32-byte secret key via getEncryptionSecretKey', async () => {
+    const didKeyPair = await generateDIDKeyPair();
+    
+    const secretKey = getEncryptionSecretKey(didKeyPair.secretKey);
+    
+    expect(secretKey).toBeInstanceOf(Uint8Array);
+    expect(secretKey.length).toBe(32);
+  });
+});
+
+describe('X25519 Keys Work with nacl.box', () => {
+  it('should encrypt and decrypt using derived X25519 keys', async () => {
+    // Import nacl for this test
+    const nacl = await import('tweetnacl');
+    
+    // Generate DID keypair (Ed25519)
+    const didKeyPair = await generateDIDKeyPair();
+    
+    // Derive X25519 keypair from Ed25519 secret key
+    const x25519KeyPair = deriveEncryptionKeyPair(didKeyPair.secretKey);
+    
+    // Generate ephemeral keypair for sender
+    const ephemeralKeyPair = nacl.box.keyPair();
+    
+    // Message to encrypt - ensure it's a proper Uint8Array
+    const messageText = 'Hello, X25519!';
+    const message = new Uint8Array(new TextEncoder().encode(messageText));
+    const nonce = nacl.randomBytes(nacl.box.nonceLength);
+    
+    // Encrypt with recipient's X25519 public key
+    const encrypted = nacl.box(
+      message,
+      nonce,
+      x25519KeyPair.publicKey,
+      ephemeralKeyPair.secretKey
+    );
+    
+    expect(encrypted).toBeInstanceOf(Uint8Array);
+    expect(encrypted.length).toBeGreaterThan(0);
+    
+    // Decrypt with recipient's X25519 secret key
+    const decrypted = nacl.box.open(
+      encrypted,
+      nonce,
+      ephemeralKeyPair.publicKey,
+      x25519KeyPair.secretKey
+    );
+    
+    expect(decrypted).not.toBeNull();
+    expect(new TextDecoder().decode(decrypted!)).toBe(messageText);
   });
 });
 
