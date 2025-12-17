@@ -1,46 +1,48 @@
 {
   "name": "witnesschain",
   "version": "0.1.0",
-  "description": "Decentralized Human Rights Evidence Platform using Filecoin, IPFS, and blockchain technology",
   "private": true,
-  "workspaces": [
-    "packages/*"
-  ],
+  "description": "Decentralized Human Rights Evidence Platform using Filecoin",
   "scripts": {
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "cd packages/backend && npm run dev",
-    "dev:frontend": "cd packages/frontend && npm run dev",
-    "build": "npm run build:backend && npm run build:frontend",
-    "build:backend": "cd packages/backend && npm run build",
-    "build:frontend": "cd packages/frontend && npm run build",
-    "install:all": "npm install && cd packages/backend && npm install && cd ../frontend && npm install",
-    "test": "npm run test:backend && npm run test:frontend",
-    "test:backend": "cd packages/backend && npm test",
-    "test:frontend": "cd packages/frontend && npm test",
-    "lint": "npm run lint:backend && npm run lint:frontend",
-    "lint:backend": "cd packages/backend && npm run lint",
-    "lint:frontend": "cd packages/frontend && npm run lint"
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "turbo test",
+    "test:unit": "turbo test:unit",
+    "test:integration": "turbo test:integration",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "clean": "turbo clean && rm -rf node_modules",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "db:generate": "turbo db:generate",
+    "db:migrate": "turbo db:migrate",
+    "db:push": "turbo db:push",
+    "validate": "pnpm --filter @witnesschain/validation validate:all"
   },
   "keywords": [
     "filecoin",
-    "ipfs",
+    "fvm",
     "human-rights",
     "evidence",
     "decentralized",
     "blockchain",
-    "fvm",
-    "drand",
+    "synapse-sdk",
     "storacha",
-    "privacy",
-    "censorship-resistant"
+    "ucan",
+    "privacy"
   ],
   "author": "Hany Almnaem",
   "license": "MIT",
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@types/node": "^22.9.0",
+    "prettier": "^3.2.0",
+    "turbo": "^2.3.0",
+    "typescript": "^5.6.3"
   },
+  "packageManager": "pnpm@9.14.2",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
   },
   "repository": {
     "type": "git",

@@ -1,0 +1,20 @@
+{
+  "extends": "./packages/config/typescript/base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@witnesschain/shared": ["packages/shared/src"],
+      "@witnesschain/shared/*": ["packages/shared/src/*"],
+      "@witnesschain/contracts": ["packages/contracts"],
+      "@witnesschain/config/*": ["packages/config/*"]
+    }
+  },
+  "include": [],
+  "exclude": ["node_modules"],
+  "references": [
+    { "path": "packages/shared" },
+    { "path": "packages/contracts" },
+    { "path": "apps/web" },
+    { "path": "apps/api" }
+  ]
+}
