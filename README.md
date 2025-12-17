@@ -1,3 +1,10 @@
+⚠️ Historical Note
+
+This repository was originally submitted to Filecoin RetroPGF as a proof-of-concept.
+The PoC version is preserved at tag: `poc-retropgf`.
+
+Active development continues on the MVP and later phases.
+
 # WitnessChain
 
 **Decentralized Human Rights Evidence Platform**
